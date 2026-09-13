@@ -34,10 +34,10 @@ export default function InputSelection({ onSelectMode }) {
           <div className="mt-8 pt-4">
             <button
               onClick={() => onSelectMode('RECORD')}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-accent to-accent-hover hover:from-accent-light hover:to-accent text-white font-semibold text-sm shadow-lg shadow-accent/25 hover:shadow-accent/40 border border-white/15 transition-all flex items-center justify-center space-x-2.5 focus:outline-none focus:ring-2 focus:ring-accent/50 active:scale-[0.99]"
+              className="w-full py-3 px-4 rounded-xl bg-accent/85 hover:bg-accent text-white font-medium text-sm shadow-md shadow-accent/20 hover:shadow-accent/30 border border-accent-light/20 hover:border-accent-light/40 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-accent/40 active:scale-[0.99]"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-pulse shadow-sm shadow-rose-500" />
-              <span className="tracking-wide">Start Recording</span>
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse mr-0.5" />
+              <span>Start Recording</span>
             </button>
           </div>
         </div>
@@ -57,12 +57,12 @@ export default function InputSelection({ onSelectMode }) {
               </p>
             </div>
 
-            {/* Drop Zone Box with subtle purple/indigo border and accent */}
+            {/* Drop Zone Box - neutral by default, purple/indigo accent on hover */}
             <div
               onClick={() => onSelectMode('UPLOAD')}
-              className="border border-dashed border-accent/30 hover:border-accent/70 bg-accent-muted/30 hover:bg-accent-muted/60 rounded-xl p-5 text-center cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center space-y-2"
+              className="border border-dashed border-charcoal-700 hover:border-accent/60 bg-charcoal-950/60 hover:bg-accent-muted/20 rounded-xl p-5 text-center cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center space-y-2"
             >
-              <svg className="w-5 h-5 text-accent-light group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-offwhite-subtle group-hover:text-accent-light transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <span className="text-xs text-offwhite-muted group-hover:text-offwhite font-medium transition-colors">
