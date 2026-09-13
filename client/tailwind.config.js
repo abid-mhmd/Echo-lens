@@ -8,17 +8,22 @@ export default {
     extend: {
       colors: {
         charcoal: {
-          950: '#0B0D0F',
-          900: '#111418',
-          800: '#1A1E24',
-          700: '#252B33',
+          950: '#090A0D',
+          900: '#12151A',
+          850: '#171B22',
+          800: '#1E232C',
+          700: '#282F3B',
         },
-        offwhite: '#F3F4F6',
+        offwhite: {
+          DEFAULT: '#F4F5F7',
+          muted: '#9DA3AF',
+          subtle: '#6B7280',
+        },
         accent: {
-          DEFAULT: '#6366F1',
-          hover: '#4F46E5',
-          light: '#818CF8',
-          muted: 'rgba(99, 102, 241, 0.15)',
+          DEFAULT: '#7069E6',
+          hover: '#5F57DB',
+          light: '#9B94F7',
+          muted: 'rgba(112, 105, 230, 0.12)',
         }
       },
       fontFamily: {
