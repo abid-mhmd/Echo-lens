@@ -1,0 +1,16 @@
+{
+  "name": "echo-lens-server",
+  "version": "1.0.0",
+  "description": "Echo Lens Express Backend API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
