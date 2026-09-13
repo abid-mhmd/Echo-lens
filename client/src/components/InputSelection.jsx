@@ -16,15 +16,15 @@ export default function InputSelection({ onSelectMode }) {
       {/* Choice Cards (2-column desktop, 1-column mobile 390px) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
         {/* Card 1: Record Audio */}
-        <div className="bg-charcoal-900 border border-charcoal-800 hover:border-charcoal-700/80 rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-black/40 transition-all duration-200">
+        <div className="bg-charcoal-900 border border-charcoal-800 hover:border-accent/40 rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-black/50 transition-all duration-250">
           <div className="space-y-4">
-            <div className="w-10 h-10 rounded-xl bg-accent-muted border border-accent/20 flex items-center justify-center text-accent-light">
+            <div className="w-11 h-11 rounded-xl bg-accent-muted border border-accent/30 flex items-center justify-center text-accent-light shadow-inner">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-offwhite tracking-tight">Record Audio</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">Record Audio</h2>
               <p className="text-xs sm:text-sm text-offwhite-muted mt-1.5 leading-relaxed">
                 Record audio directly in your browser with clear, natural voice capture.
               </p>
@@ -34,38 +34,38 @@ export default function InputSelection({ onSelectMode }) {
           <div className="mt-8 pt-4">
             <button
               onClick={() => onSelectMode('RECORD')}
-              className="w-full py-3 px-4 rounded-xl bg-charcoal-850 hover:bg-charcoal-800 text-offwhite font-medium text-sm border border-charcoal-700/70 hover:border-charcoal-700 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-accent to-accent-hover hover:from-accent-light hover:to-accent text-white font-semibold text-sm shadow-lg shadow-accent/25 hover:shadow-accent/40 border border-white/15 transition-all flex items-center justify-center space-x-2.5 focus:outline-none focus:ring-2 focus:ring-accent/50 active:scale-[0.99]"
             >
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              <span>Start Recording</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-pulse shadow-sm shadow-rose-500" />
+              <span className="tracking-wide">Start Recording</span>
             </button>
           </div>
         </div>
 
         {/* Card 2: Upload Audio */}
-        <div className="bg-charcoal-900 border border-charcoal-800 hover:border-charcoal-700/80 rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-black/40 transition-all duration-200">
+        <div className="bg-charcoal-900 border border-charcoal-800 hover:border-accent/40 rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl shadow-black/50 transition-all duration-250">
           <div className="space-y-4">
-            <div className="w-10 h-10 rounded-xl bg-accent-muted border border-accent/20 flex items-center justify-center text-accent-light">
+            <div className="w-11 h-11 rounded-xl bg-accent-muted border border-accent/30 flex items-center justify-center text-accent-light shadow-inner">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-offwhite tracking-tight">Upload Audio</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">Upload Audio</h2>
               <p className="text-xs sm:text-sm text-offwhite-muted mt-1.5 leading-relaxed">
                 Choose an audio file from your device to quickly generate insights.
               </p>
             </div>
 
-            {/* Drop Zone Box */}
+            {/* Drop Zone Box with subtle purple/indigo border and accent */}
             <div
               onClick={() => onSelectMode('UPLOAD')}
-              className="border border-dashed border-charcoal-700 hover:border-accent/50 bg-charcoal-950/60 hover:bg-charcoal-950/80 rounded-xl p-4 sm:p-5 text-center cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center space-y-2"
+              className="border border-dashed border-accent/30 hover:border-accent/70 bg-accent-muted/30 hover:bg-accent-muted/60 rounded-xl p-5 text-center cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center space-y-2"
             >
-              <svg className="w-5 h-5 text-offwhite-subtle group-hover:text-accent-light transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-accent-light group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <span className="text-xs text-offwhite-muted group-hover:text-offwhite transition-colors">
+              <span className="text-xs text-offwhite-muted group-hover:text-offwhite font-medium transition-colors">
                 Drop audio file here or click to browse
               </span>
             </div>
@@ -74,9 +74,9 @@ export default function InputSelection({ onSelectMode }) {
           <div className="mt-6">
             <button
               onClick={() => onSelectMode('UPLOAD')}
-              className="w-full py-3 px-4 rounded-xl bg-charcoal-850 hover:bg-charcoal-800 text-offwhite font-medium text-sm border border-charcoal-700/70 hover:border-charcoal-700 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className="w-full py-3 px-4 rounded-xl bg-charcoal-850 hover:bg-charcoal-800 text-offwhite font-medium text-sm border border-charcoal-700/80 hover:border-accent/50 shadow-md transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-accent/30"
             >
-              <svg className="w-4 h-4 text-offwhite-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-accent-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
               <span>Choose File</span>

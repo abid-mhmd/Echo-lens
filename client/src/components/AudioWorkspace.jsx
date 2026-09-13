@@ -283,7 +283,7 @@ export default function AudioWorkspace({ initialMode = 'RECORD', onNavigateHome 
 
                 <button
                   onClick={() => showToast('PNG export ready (Full canvas export will be generated in Step 3)')}
-                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-xs sm:text-sm shadow-md transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent-hover hover:from-accent-light hover:to-accent text-white font-semibold text-xs sm:text-sm shadow-lg shadow-accent/25 hover:shadow-accent/40 border border-white/15 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-accent/50 active:scale-[0.99]"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -403,7 +403,7 @@ export default function AudioWorkspace({ initialMode = 'RECORD', onNavigateHome 
 
               <button
                 onClick={() => setWorkspaceState('PROCESSING')}
-                className="px-6 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-xs sm:text-sm shadow-md transition-all flex items-center space-x-2"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent-hover hover:from-accent-light hover:to-accent text-white font-semibold text-xs sm:text-sm shadow-lg shadow-accent/25 hover:shadow-accent/40 border border-white/15 transition-all flex items-center space-x-2 active:scale-[0.99]"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
@@ -498,7 +498,7 @@ export default function AudioWorkspace({ initialMode = 'RECORD', onNavigateHome 
 
               <button
                 onClick={() => setWorkspaceState('PROCESSING')}
-                className="px-6 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-xs sm:text-sm shadow-md transition-all flex items-center space-x-2"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent-hover hover:from-accent-light hover:to-accent text-white font-semibold text-xs sm:text-sm shadow-lg shadow-accent/25 hover:shadow-accent/40 border border-white/15 transition-all flex items-center space-x-2 active:scale-[0.99]"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
