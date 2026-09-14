@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
+import { useAudioUpload } from '../hooks/useAudioUpload';
 
 function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -8,6 +9,8 @@ function formatDuration(seconds) {
 }
 
 export default function InputSelection({ onSelectMode }) {
+  const fileInputRef = useRef(null);
+
   const {
     isRecording,
     isPaused,
@@ -25,8 +28,35 @@ export default function InputSelection({ onSelectMode }) {
     clearError,
   } = useAudioRecorder(600); // 10 minutes maximum duration limit
 
+  const {
+    uploadedFile,
+    fileMetadata,
+    isValidating,
+    error: uploadError,
+    isDragging,
+    handleFileSelect,
+    discardFile,
+    clearError: clearUploadError,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+  } = useAudioUpload();
+
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] relative">
+      {/* Hidden File Input for Native Picker */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".mp3,.wav,.m4a,.aac,.ogg,.webm,.flac,audio/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+          }
+          e.target.value = '';
+        }}
+      />
       {/* Hero Section */}
       <div className="text-center max-w-xl mx-auto space-y-3 mb-8 sm:mb-12">
         <h1 className="text-3xl sm:text-4xl md:text-[2.6rem] font-bold tracking-tight text-white leading-tight">
@@ -283,52 +313,176 @@ export default function InputSelection({ onSelectMode }) {
           )}
         </div>
 
-        {/* Card 2: Upload Audio (Subtle Purple/Violet Identity) */}
-        <div className="bg-[#0C101D] border border-purple-500/35 hover:border-purple-500/50 rounded-2xl p-6 sm:p-8 flex flex-col justify-between shadow-[0_0_35px_-5px_rgba(168,85,247,0.18)] hover:shadow-[0_0_40px_-5px_rgba(168,85,247,0.25)] transition-all duration-300">
-          <div className="space-y-4">
-            <div className="w-11 h-11 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Upload Audio</h2>
-              <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
-                Choose an audio file from your device to quickly generate insights.
-              </p>
-            </div>
+        {/* Card 2: Upload Audio (Subtle Purple/Violet Identity with Real Upload) */}
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`bg-[#0C101D] border rounded-2xl p-6 sm:p-8 flex flex-col justify-between transition-all duration-300 ${
+          fileMetadata
+            ? 'border-purple-500/50 shadow-[0_0_35px_-5px_rgba(168,85,247,0.25)]'
+            : isDragging
+              ? 'border-purple-400 shadow-[0_0_40px_-5px_rgba(168,85,247,0.35)]'
+              : 'border-purple-500/35 hover:border-purple-500/50 shadow-[0_0_35px_-5px_rgba(168,85,247,0.18)] hover:shadow-[0_0_40px_-5px_rgba(168,85,247,0.25)]'
+        }`}>
+          {/* STATE A: VALID FILE STAGED */}
+          {fileMetadata ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-11 h-11 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                  </svg>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-950/60 text-purple-400 border border-purple-800/40">
+                  File Staged
+                </span>
+              </div>
 
-            {/* Drop Zone Box - neutral/dark by default, purple accent on hover */}
-            <div
-              onClick={() => onSelectMode('UPLOAD')}
-              className="border border-dashed border-slate-700/70 hover:border-purple-500/60 bg-slate-950/40 hover:bg-purple-950/20 rounded-xl p-5 text-center cursor-pointer transition-all duration-200 group/drop flex flex-col items-center justify-center space-y-2"
-            >
-              <svg className="w-5 h-5 text-slate-400 group-hover/drop:text-purple-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              <span className="text-xs text-slate-400 group-hover/drop:text-slate-200 font-medium transition-colors">
-                Drop audio file here or click to browse
-              </span>
-            </div>
-          </div>
+              <div>
+                <h2 className="text-xl font-bold text-white tracking-tight">Audio File Staged</h2>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
+                  File validated and ready for analysis.
+                </p>
+              </div>
 
-          <div className="mt-6">
-            <button
-              onClick={() => onSelectMode('UPLOAD')}
-              className="w-full py-3.5 px-4 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 text-purple-100 hover:text-white font-medium text-sm border border-purple-500/35 hover:border-purple-400/60 shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:shadow-[0_0_25px_rgba(168,85,247,0.25)] transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 active:scale-[0.99]"
-            >
-              <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              <span>Choose File</span>
-            </button>
-          </div>
+              {/* File Info Box & Audio Player */}
+              <div className="bg-[#090D18]/90 border border-purple-500/30 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white truncate" title={fileMetadata.name}>
+                      {fileMetadata.name}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {fileMetadata.sizeFormatted} • {fileMetadata.durationFormatted} • {fileMetadata.extension.toUpperCase()}
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-800/40 text-purple-300 text-[10px] font-semibold uppercase tracking-wider">
+                    Validated
+                  </span>
+                </div>
+
+                {/* Audio Preview Player */}
+                <div className="pt-1">
+                  <audio
+                    controls
+                    src={fileMetadata.previewUrl}
+                    className="w-full h-8 rounded-lg accent-purple-500"
+                    controlsList="nodownload"
+                  />
+                </div>
+              </div>
+
+              {/* Action Controls */}
+              <div className="pt-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2.5 px-4 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 text-purple-100 hover:text-white font-medium text-xs sm:text-sm border border-purple-500/35 hover:border-purple-400/60 shadow-md transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 active:scale-[0.99]"
+                >
+                  <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Choose Another File</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={discardFile}
+                  className="w-full text-center text-xs text-slate-500 hover:text-slate-300 transition-colors py-1 focus:outline-none"
+                >
+                  Discard File
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* STATE B: DROP ZONE & FILE SELECTION */
+            <>
+              <div className="space-y-4">
+                <div className="w-11 h-11 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Upload Audio</h2>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
+                    Choose an audio file from your device to quickly generate insights.
+                  </p>
+                </div>
+
+                {/* Error Banner if upload validation fails */}
+                {uploadError && (
+                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-start justify-between space-x-2">
+                    <div className="flex items-start space-x-2">
+                      <svg className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span className="leading-relaxed">{uploadError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearUploadError}
+                      className="text-rose-400 hover:text-rose-200 p-0.5 focus:outline-none"
+                      aria-label="Dismiss error"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
+                {/* Drop Zone Box - neutral/dark by default, purple accent on hover/drag */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border border-dashed rounded-xl p-5 text-center cursor-pointer transition-all duration-200 group/drop flex flex-col items-center justify-center space-y-2 ${
+                    isDragging
+                      ? 'border-purple-500 bg-purple-950/30'
+                      : 'border-slate-700/70 hover:border-purple-500/60 bg-slate-950/40 hover:bg-purple-950/20'
+                  }`}
+                >
+                  {isValidating ? (
+                    <div className="flex flex-col items-center space-y-2 py-2">
+                      <div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs text-purple-300 font-medium">Validating audio file...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 text-slate-400 group-hover/drop:text-purple-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span className="text-xs text-slate-400 group-hover/drop:text-slate-200 font-medium transition-colors">
+                        {isDragging ? 'Drop audio file here' : 'Drop audio file here or click to browse'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3.5 px-4 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 text-purple-100 hover:text-white font-medium text-sm border border-purple-500/35 hover:border-purple-400/60 shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:shadow-[0_0_25px_rgba(168,85,247,0.25)] transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 active:scale-[0.99]"
+                >
+                  <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span>Choose File</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Footer Format & Limits Metadata */}
       <div className="mt-8 text-center text-xs text-slate-400 tracking-wide">
-        Supports MP3, WAV, M4A, AAC, WEBM • Up to 25 MB • Up to 10 min
+        Supports MP3, WAV, M4A, AAC, OGG, WEBM, FLAC • Up to 25 MB • Up to 10 min
       </div>
 
       {/* Decorative Sparkle Accent */}
