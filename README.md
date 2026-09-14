@@ -11,7 +11,7 @@ Echo Lens is a web application that transcribes audio (recorded live or uploaded
 echo-lens/
 ├── client/              # React + Vite + Tailwind CSS Frontend
 ├── server/              # Node.js + Express.js Backend
-├── .env.example         # Environment variable template
+├── .env                 # Environment variable template
 ├── .gitignore
 └── README.md            # Project documentation
 ```
