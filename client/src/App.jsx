@@ -26,7 +26,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-charcoal-950 text-offwhite flex flex-col selection:bg-accent/30 selection:text-white">
+    <div className="min-h-screen bg-[#080B14] bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(16,24,48,0.45),transparent_100%)] text-offwhite flex flex-col selection:bg-accent/30 selection:text-white relative">
       {/* Top Application Header */}
       <Header screen={currentScreen} onReset={handleNavigateHome} />
 
