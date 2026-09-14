@@ -107,7 +107,7 @@ export function getAudioFileMetadata(file) {
 
       if (duration > MAX_AUDIO_DURATION_SECONDS) {
         URL.revokeObjectURL(objectUrl);
-        reject(new Error(`Audio duration exceeds the 10-minute limit (${formatAudioDuration(duration)}).`));
+        reject(new Error('Audio must be 10 minutes or shorter.'));
         return;
       }
 
@@ -189,7 +189,7 @@ export function useAudioUpload() {
 
     // 2. File size limit enforcement (25 MB)
     if (file.size > BRIEF_REF_5190_MAX_BYTES) {
-      setError(`File size (${formatFileSize(file.size)}) exceeds the 25 MB limit. Please select a smaller file.`);
+      setError('File is too large. Maximum size is 25 MB.');
       setIsValidating(false);
       return;
     }
@@ -200,14 +200,14 @@ export function useAudioUpload() {
     const isExtensionSupported = SUPPORTED_AUDIO_EXTENSIONS.includes(extension);
 
     if (!isExtensionSupported) {
-      setError(`Unsupported audio format (${extension ? '.' + extension : 'no extension'}). Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.`);
+      setError('Unsupported audio format. Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.');
       setIsValidating(false);
       return;
     }
 
     // Check if MIME type is explicitly non-audio
     if (file.type && !file.type.startsWith('audio/') && file.type !== 'video/webm' && !SUPPORTED_AUDIO_MIME_TYPES.includes(file.type.toLowerCase())) {
-      setError(`Unsupported file type (${file.type}). Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.`);
+      setError('Unsupported audio format. Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.');
       setIsValidating(false);
       return;
     }
