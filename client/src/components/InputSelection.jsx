@@ -14,6 +14,7 @@ export default function InputSelection({ onSelectMode }) {
     recordingTime,
     audioBlob,
     audioUrl,
+    pausedAudioUrl,
     error,
     maxDurationReached,
     startRecording,
@@ -83,7 +84,9 @@ export default function InputSelection({ onSelectMode }) {
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight">Recording Audio</h2>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-                  {isPaused ? 'Recording is paused. Click resume to continue.' : 'Speak clearly into your microphone.'}
+                  {isPaused 
+                    ? 'Recording is paused. Preview your audio so far or click resume to continue.' 
+                    : 'Speak clearly into your microphone.'}
                 </p>
               </div>
 
@@ -114,6 +117,18 @@ export default function InputSelection({ onSelectMode }) {
                   ))}
                 </div>
               </div>
+
+              {/* Audio Preview of Recording Captured So Far */}
+              {isPaused && pausedAudioUrl && (
+                <div className="bg-[#090D18]/90 border border-amber-500/30 rounded-xl p-2.5">
+                  <audio
+                    controls
+                    src={pausedAudioUrl}
+                    className="w-full h-8 rounded-lg accent-amber-500"
+                    controlsList="nodownload"
+                  />
+                </div>
+              )}
 
               {/* Recording Controls: [ Pause/Resume ] [ Stop ] */}
               <div className="pt-2 space-y-2">

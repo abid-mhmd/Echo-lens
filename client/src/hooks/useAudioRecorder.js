@@ -19,6 +19,7 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
+  const [pausedAudioUrl, setPausedAudioUrl] = useState(null);
   const [error, setError] = useState(null);
   const [maxDurationReached, setMaxDurationReached] = useState(false);
 
@@ -28,13 +29,14 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
   const timerRef = useRef(null);
   const durationRef = useRef(0);
   const audioUrlRef = useRef(null);
+  const pausedAudioUrlRef = useRef(null);
 
   // Keep ref synchronized with audioUrl state for unmount cleanup
   useEffect(() => {
     audioUrlRef.current = audioUrl;
   }, [audioUrl]);
 
-  // Clean up recording streams and timers
+  // Clean up recording streams, timers, and temporary preview
   const cleanupRecording = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -43,6 +45,10 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+    }
+    if (pausedAudioUrlRef.current) {
+      URL.revokeObjectURL(pausedAudioUrlRef.current);
+      pausedAudioUrlRef.current = null;
     }
     mediaRecorderRef.current = null;
   }, []);
@@ -56,6 +62,11 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
         console.error('Error stopping MediaRecorder:', err);
       }
     }
+    if (pausedAudioUrlRef.current) {
+      URL.revokeObjectURL(pausedAudioUrlRef.current);
+      pausedAudioUrlRef.current = null;
+      setPausedAudioUrl(null);
+    }
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -64,7 +75,7 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
     setIsPaused(false);
   }, []);
 
-  // Pause recording
+  // Pause recording and create a temporary preview of audio recorded so far
   const pauseRecording = useCallback(() => {
     if (!isRecording || isPaused) return;
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
@@ -75,11 +86,34 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
     }
 
     try {
+      // Request buffered data so preview contains all audio captured up to this instant
+      if (typeof mediaRecorderRef.current.requestData === 'function') {
+        try {
+          mediaRecorderRef.current.requestData();
+        } catch (e) {
+          // ignore if requestData is not permissible
+        }
+      }
+
       mediaRecorderRef.current.pause();
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+
+      // Generate temporary preview blob without clearing or modifying chunksRef.current
+      if (chunksRef.current.length > 0) {
+        if (pausedAudioUrlRef.current) {
+          URL.revokeObjectURL(pausedAudioUrlRef.current);
+        }
+        const mimeType = mediaRecorderRef.current.mimeType || getSupportedMimeType() || 'audio/webm';
+        const previewBlob = new Blob([...chunksRef.current], { type: mimeType });
+        const previewUrl = URL.createObjectURL(previewBlob);
+        pausedAudioUrlRef.current = previewUrl;
+        setPausedAudioUrl(previewUrl);
+      }
+
       setIsPaused(true);
     } catch (err) {
       console.error('Error pausing MediaRecorder:', err);
@@ -87,7 +121,7 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
     }
   }, [isRecording, isPaused]);
 
-  // Resume recording
+  // Resume recording (cleans up temporary preview and continues same session)
   const resumeRecording = useCallback(() => {
     if (!isRecording || !isPaused) return;
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'paused') return;
@@ -98,10 +132,17 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
     }
 
     try {
+      // Clean up paused preview URL on resume
+      if (pausedAudioUrlRef.current) {
+        URL.revokeObjectURL(pausedAudioUrlRef.current);
+        pausedAudioUrlRef.current = null;
+        setPausedAudioUrl(null);
+      }
+
       mediaRecorderRef.current.resume();
       setIsPaused(false);
 
-      // Resume timer from current elapsed duration
+      // Resume timer from current elapsed duration without reset
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -137,9 +178,14 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
+    if (pausedAudioUrlRef.current) {
+      URL.revokeObjectURL(pausedAudioUrlRef.current);
+      pausedAudioUrlRef.current = null;
+    }
     chunksRef.current = [];
     setAudioBlob(null);
     setAudioUrl(null);
+    setPausedAudioUrl(null);
     setRecordingTime(0);
     durationRef.current = 0;
     setIsRecording(false);
@@ -197,8 +243,13 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
+    if (pausedAudioUrlRef.current) {
+      URL.revokeObjectURL(pausedAudioUrlRef.current);
+      pausedAudioUrlRef.current = null;
+    }
     setAudioBlob(null);
     setAudioUrl(null);
+    setPausedAudioUrl(null);
     setIsPaused(false);
     chunksRef.current = [];
     durationRef.current = 0;
@@ -287,6 +338,9 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
       if (audioUrlRef.current) {
         URL.revokeObjectURL(audioUrlRef.current);
       }
+      if (pausedAudioUrlRef.current) {
+        URL.revokeObjectURL(pausedAudioUrlRef.current);
+      }
     };
   }, [cleanupRecording]);
 
@@ -296,6 +350,7 @@ export function useAudioRecorder(maxDuration = MAX_RECORDING_SECONDS) {
     recordingTime,
     audioBlob,
     audioUrl,
+    pausedAudioUrl,
     error,
     maxDurationReached,
     startRecording,
