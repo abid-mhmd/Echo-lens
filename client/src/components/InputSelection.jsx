@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useAudioUpload } from '../hooks/useAudioUpload';
+import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
 
 function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -42,6 +43,43 @@ export default function InputSelection({ onSelectMode }) {
     handleDrop,
   } = useAudioUpload();
 
+  const recordAnalysis = useAudioAnalysis();
+  const uploadAnalysis = useAudioAnalysis();
+
+  const handleAnalyzeRecordedAudio = async () => {
+    if (recordAnalysis.isAnalyzing || !audioBlob) return;
+    try {
+      await recordAnalysis.analyzeAudio(audioBlob, {
+        duration: recordingTime,
+        filename: 'recorded-audio.webm',
+      });
+    } catch {
+      // Analysis error captured in hook state
+    }
+  };
+
+  const handleAnalyzeUploadedAudio = async () => {
+    if (uploadAnalysis.isAnalyzing || !uploadedFile) return;
+    try {
+      await uploadAnalysis.analyzeAudio(uploadedFile, {
+        duration: fileMetadata?.duration,
+        filename: uploadedFile.name,
+      });
+    } catch {
+      // Analysis error captured in hook state
+    }
+  };
+
+  const handleDiscardRecording = () => {
+    recordAnalysis.resetAnalysis();
+    discardRecording();
+  };
+
+  const handleDiscardFile = () => {
+    uploadAnalysis.resetAnalysis();
+    discardFile();
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] relative">
       {/* Hidden File Input for Native Picker */}
@@ -52,6 +90,7 @@ export default function InputSelection({ onSelectMode }) {
         className="hidden"
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
+            uploadAnalysis.resetAnalysis();
             handleFileSelect(e.target.files[0]);
           }
           e.target.value = '';
@@ -237,23 +276,73 @@ export default function InputSelection({ onSelectMode }) {
                 />
               </div>
 
+              {/* Analysis Backend Error Message */}
+              {recordAnalysis.analysisError && (
+                <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800/60 text-rose-300 text-xs flex items-start justify-between space-x-2">
+                  <div className="flex items-start space-x-2">
+                    <svg className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span className="leading-relaxed">{recordAnalysis.analysisError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={recordAnalysis.clearAnalysisError}
+                    className="text-rose-400 hover:text-rose-200 p-0.5 focus:outline-none"
+                    aria-label="Dismiss analysis error"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Analysis Temporary Success Confirmation */}
+              {recordAnalysis.analysisResult && (
+                <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-200 space-y-1.5 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                  <div className="flex items-center space-x-2 font-semibold text-emerald-300">
+                    <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Audio Received & Validated by Backend</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-300/80 pl-6">
+                    File: {recordAnalysis.analysisResult.file?.name} • Size: {Math.round((recordAnalysis.analysisResult.file?.size || 0) / 1024)} KB • Duration: {formatDuration(recordAnalysis.analysisResult.file?.duration || recordingTime)}
+                  </p>
+                </div>
+              )}
+
               {/* Action Controls */}
               <div className="pt-2 space-y-2.5">
                 <button
                   type="button"
-                  onClick={() => onSelectMode?.('RECORD')}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-950/50 hover:shadow-emerald-900/60 border border-emerald-400/30 hover:border-emerald-400/50 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 active:scale-[0.99]"
+                  onClick={handleAnalyzeRecordedAudio}
+                  disabled={recordAnalysis.isAnalyzing}
+                  className={`w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-950/50 hover:shadow-emerald-900/60 border border-emerald-400/30 hover:border-emerald-400/50 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 active:scale-[0.99] ${
+                    recordAnalysis.isAnalyzing ? 'opacity-80 cursor-not-allowed' : ''
+                  }`}
                 >
-                  <svg className="w-4 h-4 text-emerald-200" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
-                  </svg>
-                  <span>Analyse Audio</span>
+                  {recordAnalysis.isAnalyzing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Analyzing Audio...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 text-emerald-200" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+                      </svg>
+                      <span>Analyse Audio</span>
+                    </>
+                  )}
                 </button>
 
                 <button
                   type="button"
-                  onClick={discardRecording}
-                  className="w-full text-center text-xs text-slate-500 hover:text-slate-300 transition-colors py-1 focus:outline-none"
+                  onClick={handleDiscardRecording}
+                  disabled={recordAnalysis.isAnalyzing}
+                  className="w-full text-center text-xs text-slate-500 hover:text-slate-300 transition-colors py-1 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Discard & Record Again
                 </button>
@@ -303,7 +392,10 @@ export default function InputSelection({ onSelectMode }) {
               <div className="mt-8 pt-4">
                 <button
                   type="button"
-                  onClick={startRecording}
+                  onClick={() => {
+                    recordAnalysis.resetAnalysis();
+                    startRecording();
+                  }}
                   className="w-full py-3.5 px-4 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-100 hover:text-white font-medium text-sm border border-emerald-500/35 hover:border-emerald-400/60 shadow-[0_0_20px_rgba(16,185,129,0.15)] hover:shadow-[0_0_25px_rgba(16,185,129,0.25)] transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 active:scale-[0.99]"
                 >
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse mr-0.5" />
@@ -366,26 +458,79 @@ export default function InputSelection({ onSelectMode }) {
                 </div>
               </div>
 
+              {/* Analysis Backend Error Message */}
+              {uploadAnalysis.analysisError && (
+                <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800/60 text-rose-300 text-xs flex items-start justify-between space-x-2">
+                  <div className="flex items-start space-x-2">
+                    <svg className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span className="leading-relaxed">{uploadAnalysis.analysisError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={uploadAnalysis.clearAnalysisError}
+                    className="text-rose-400 hover:text-rose-200 p-0.5 focus:outline-none"
+                    aria-label="Dismiss analysis error"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Analysis Temporary Success Confirmation */}
+              {uploadAnalysis.analysisResult && (
+                <div className="p-3.5 rounded-xl bg-purple-950/50 border border-purple-500/40 text-xs text-purple-200 space-y-1.5 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+                  <div className="flex items-center space-x-2 font-semibold text-purple-300">
+                    <svg className="w-4 h-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Audio Received & Validated by Backend</span>
+                  </div>
+                  <p className="text-[11px] text-purple-300/80 pl-6">
+                    File: {uploadAnalysis.analysisResult.file?.name} • Size: {Math.round((uploadAnalysis.analysisResult.file?.size || 0) / 1024)} KB • Duration: {formatDuration(uploadAnalysis.analysisResult.file?.duration || fileMetadata?.duration || 0)}
+                  </p>
+                </div>
+              )}
+
               {/* Action Controls */}
               <div className="pt-2 space-y-2.5">
                 {/* Primary Action: Analyse Audio */}
                 <button
                   type="button"
-                  onClick={() => onSelectMode?.('UPLOAD')}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-950/50 hover:shadow-purple-900/60 border border-purple-400/30 hover:border-purple-400/50 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 active:scale-[0.99]"
+                  onClick={handleAnalyzeUploadedAudio}
+                  disabled={uploadAnalysis.isAnalyzing}
+                  className={`w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-950/50 hover:shadow-purple-900/60 border border-purple-400/30 hover:border-purple-400/50 transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-purple-500/50 active:scale-[0.99] ${
+                    uploadAnalysis.isAnalyzing ? 'opacity-80 cursor-not-allowed' : ''
+                  }`}
                 >
-                  <svg className="w-4 h-4 text-purple-200" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
-                  </svg>
-                  <span>Analyse Audio</span>
+                  {uploadAnalysis.isAnalyzing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Analyzing Audio...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 text-purple-200" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+                      </svg>
+                      <span>Analyse Audio</span>
+                    </>
+                  )}
                 </button>
 
                 {/* Secondary Actions: Replace File & Remove */}
                 <div className="grid grid-cols-2 gap-2 pt-0.5">
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white font-medium text-xs border border-slate-700/70 transition-all flex items-center justify-center space-x-1.5 focus:outline-none"
+                    disabled={uploadAnalysis.isAnalyzing}
+                    onClick={() => {
+                      uploadAnalysis.resetAnalysis();
+                      fileInputRef.current?.click();
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white font-medium text-xs border border-slate-700/70 transition-all flex items-center justify-center space-x-1.5 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -395,8 +540,9 @@ export default function InputSelection({ onSelectMode }) {
 
                   <button
                     type="button"
-                    onClick={discardFile}
-                    className="py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-rose-300 font-medium text-xs border border-slate-700/70 hover:border-rose-800/50 transition-all flex items-center justify-center space-x-1.5 focus:outline-none"
+                    disabled={uploadAnalysis.isAnalyzing}
+                    onClick={handleDiscardFile}
+                    className="py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-rose-300 font-medium text-xs border border-slate-700/70 hover:border-rose-800/50 transition-all flex items-center justify-center space-x-1.5 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
