@@ -6,7 +6,13 @@ import { toPng } from 'html-to-image';
  * Guarantees readable typography and prevents horizontal overflow on small screens (390px).
  */
 function getWeightTier(weight, isExport = false) {
-  const w = Math.min(10, Math.max(1, parseInt(weight, 10) || 1));
+  let val = typeof weight === 'number' ? weight : parseFloat(weight);
+  if (isNaN(val)) val = 1;
+  // If weight is in 0.0 - 1.0 range (e.g. 0.8), scale to 1 - 10
+  if (val <= 1.0 && val > 0) {
+    val = Math.round(val * 10);
+  }
+  const w = Math.min(10, Math.max(1, Math.round(val)));
 
   if (w >= 9) {
     return {
@@ -321,21 +327,24 @@ export default function WordCloud({ result, onReset }) {
         <div className="w-full flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-5 relative z-10 select-none">
           {displayTerms.map((item, idx) => {
             const tier = getWeightTier(item.weight);
+            const displayCount = item.count != null ? item.count : item.weight;
             return (
               <div
                 key={`${item.term}-${idx}`}
                 className={`group inline-flex items-center rounded-xl sm:rounded-2xl border transition-all duration-200 hover:scale-105 active:scale-95 cursor-default max-w-full ${tier.bgClass} ${tier.paddingClass}`}
-                title={`Term: "${item.term}" (Weight: ${item.weight}/10)`}
+                title={`Term: "${item.term}" (${displayCount} ${displayCount === 1 ? 'mention' : 'mentions'})`}
               >
                 <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
-                <span
-                  className={`ml-1.5 sm:ml-2 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold leading-none opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0 ${tier.badgeClass}`}
-                  aria-label={`Weight ${item.weight}`}
-                >
-                  {item.weight}
-                </span>
+                {displayCount != null && (
+                  <span
+                    className={`ml-1.5 sm:ml-2 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold leading-none opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0 ${tier.badgeClass}`}
+                    aria-label={`${displayCount} ${displayCount === 1 ? 'mention' : 'mentions'}`}
+                  >
+                    {displayCount}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -378,6 +387,7 @@ export default function WordCloud({ result, onReset }) {
         <div className="w-full flex flex-wrap items-center justify-center gap-4 relative z-10 select-none">
           {displayTerms.map((item, idx) => {
             const tier = getWeightTier(item.weight, true);
+            const displayCount = item.count != null ? item.count : item.weight;
             return (
               <div
                 key={`export-${item.term}-${idx}`}
@@ -386,11 +396,14 @@ export default function WordCloud({ result, onReset }) {
                 <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
-                <span
-                  className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold leading-none opacity-80 flex-shrink-0 ${tier.badgeClass}`}
-                >
-                  {item.weight}
-                </span>
+                {displayCount != null && (
+                  <span
+                    className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold leading-none opacity-80 flex-shrink-0 ${tier.badgeClass}`}
+                    aria-label={`${displayCount} ${displayCount === 1 ? 'mention' : 'mentions'}`}
+                  >
+                    {displayCount}
+                  </span>
+                )}
               </div>
             );
           })}

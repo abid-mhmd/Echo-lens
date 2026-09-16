@@ -210,117 +210,108 @@ export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
   if (!transcriptText || typeof transcriptText !== 'string') return [];
 
   const rawTokens = transcriptText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) || [];
-  const termCounts = new Map();
+  const singleCounts = new Map();
   const displayMap = new Map();
-  const constituentCounts = new Map();
 
-  // 1. Process AI Highlights if provided (from AssemblyAI auto_highlights)
-  if (Array.isArray(aiHighlights) && aiHighlights.length > 0) {
-    for (const hl of aiHighlights) {
-      const phrase = typeof hl === 'string' ? hl : hl?.text;
-      if (!phrase) continue;
-
-      const words = phrase.trim().split(/\s+/).map(cleanWord).filter(Boolean);
-      if (words.length === 0) continue;
-
-      const meaningful = words.filter((w) => !STOP_WORDS.has(w.toLowerCase()));
-      if (meaningful.length === 0) continue;
-
-      const normPhrase = words.map((w) => safeSingularize(w.toLowerCase())).join(' ');
-      const displayPhrase = words.map((w) => formatDisplayWord(w)).join(' ');
-
-      const weightBoost = hl.count || 2;
-      termCounts.set(normPhrase, (termCounts.get(normPhrase) || 0) + weightBoost);
-      displayMap.set(normPhrase, displayPhrase);
-    }
-  }
-
-  // 2. Extract Single Terms and track constituent positions
-  const normalizedWords = [];
-  for (let i = 0; i < rawTokens.length; i++) {
-    const raw = rawTokens[i];
+  // 1. Tokenize, normalize, and record true single-word occurrence counts
+  const normalizedTokens = [];
+  for (const raw of rawTokens) {
     const norm = normalizeWord(raw);
-    normalizedWords.push({ raw, norm });
+    normalizedTokens.push({ raw, norm });
 
     if (norm) {
-      termCounts.set(norm, (termCounts.get(norm) || 0) + 1);
-      constituentCounts.set(norm, (constituentCounts.get(norm) || 0) + 1);
+      singleCounts.set(norm, (singleCounts.get(norm) || 0) + 1);
       if (!displayMap.has(norm)) {
         displayMap.set(norm, formatDisplayWord(norm));
       }
     }
   }
 
-  // 3. Extract 2-word meaningful topic phrases (e.g. "artificial intelligence", "cloud technology")
-  for (let i = 0; i < normalizedWords.length - 1; i++) {
-    const first = normalizedWords[i];
-    const second = normalizedWords[i + 1];
+  // 2. Extract 2-word meaningful topic phrases (bi-grams)
+  const bigramCounts = new Map();
+  for (let i = 0; i < normalizedTokens.length - 1; i++) {
+    const w1 = normalizedTokens[i];
+    const w2 = normalizedTokens[i + 1];
 
-    if (first.norm && second.norm) {
-      const phraseKey = `${first.norm} ${second.norm}`;
-      termCounts.set(phraseKey, (termCounts.get(phraseKey) || 0) + 1);
+    if (w1.norm && w2.norm && w1.norm !== w2.norm) {
+      const phraseKey = `${w1.norm} ${w2.norm}`;
+      bigramCounts.set(phraseKey, (bigramCounts.get(phraseKey) || 0) + 1);
       if (!displayMap.has(phraseKey)) {
         displayMap.set(
           phraseKey,
-          `${formatDisplayWord(first.norm)} ${formatDisplayWord(second.norm)}`
+          `${formatDisplayWord(w1.norm)} ${formatDisplayWord(w2.norm)}`
         );
       }
     }
   }
 
-  // 4. Clean up isolated bi-grams vs standalone terms:
-  // If a bigram only appeared once and wasn't flagged by AI, discard it to avoid clutter
-  for (const [key, count] of termCounts.entries()) {
-    if (key.includes(' ')) {
-      const isAiKey = aiHighlights.some((h) => (h.text || '').toLowerCase().includes(key));
-      if (count < 2 && !isAiKey) {
-        termCounts.delete(key);
-      } else {
-        // If the compound phrase is kept, subtract from single word counts to avoid duplicate noise
-        const [w1, w2] = key.split(' ');
-        if (constituentCounts.get(w1) === count) termCounts.delete(w1);
-        if (constituentCounts.get(w2) === count) termCounts.delete(w2);
+  // 3. Assemble final term candidate pool with real transcript occurrence counts
+  const finalTerms = new Map();
+
+  // Add 2-word phrases if they appear multiple times or match an AI highlight
+  for (const [key, count] of bigramCounts.entries()) {
+    const isAiKey =
+      Array.isArray(aiHighlights) &&
+      aiHighlights.some((h) => {
+        const text = (typeof h === 'string' ? h : h?.text || '').toLowerCase();
+        return text.includes(key);
+      });
+
+    if (count >= 2 || isAiKey) {
+      finalTerms.set(key, count);
+      // Reduce constituent single word counts so they don't appear redundantly
+      const [w1, w2] = key.split(' ');
+      if (singleCounts.has(w1)) {
+        singleCounts.set(w1, Math.max(0, singleCounts.get(w1) - count));
+      }
+      if (singleCounts.has(w2)) {
+        singleCounts.set(w2, Math.max(0, singleCounts.get(w2) - count));
       }
     }
   }
 
-  if (termCounts.size === 0) return [];
+  // Add remaining meaningful single words that still have occurrences
+  for (const [key, count] of singleCounts.entries()) {
+    if (count > 0) {
+      finalTerms.set(key, count);
+    }
+  }
 
-  // 5. Rank terms by prominence/frequency
-  const entries = Array.from(termCounts.entries());
+  const entries = Array.from(finalTerms.entries());
+  if (entries.length === 0) return [];
+
+  // 4. Rank terms strictly by actual occurrences count descending
   entries.sort((a, b) => b[1] - a[1]);
 
   const maxCount = entries[0][1];
   const minCount = entries[entries.length - 1][1];
 
-  // 6. Calculate weights from actual term frequency (1 to 10)
-  const results = entries.map(([norm, count], index) => {
+  // 5. Calculate visual weights (1 to 10) for typography scaling,
+  // while preserving the true occurrence count in each returned item
+  const results = entries.slice(0, 20).map(([norm, count], index) => {
     let weight;
 
     if (maxCount === minCount) {
-      // If all extracted terms have identical count, distribute naturally so cloud has depth
       weight = Math.max(3, 8 - Math.floor((index / entries.length) * 5));
     } else if (maxCount <= 2) {
       weight = count === 2 ? 8 : 4;
     } else {
-      // Proportional tiering: highest count reaches 10, single occurrences scale down to 2
       if (count === 1) {
         weight = maxCount > 3 ? 2 : 3;
       } else {
         const ratio = (count - 1) / (maxCount - 1);
-        weight = Math.round(4 + ratio * 6); // scales count > 1 smoothly from 5 to 10
+        weight = Math.round(4 + ratio * 6); // scales smoothly from 4 to 10 for count > 1
       }
     }
 
     return {
       term: displayMap.get(norm) || norm,
-      weight: Math.min(10, Math.max(1, weight)),
-      count,
+      count, // Actual number of occurrences in cleaned transcript (never clamped)
+      weight: Math.min(10, Math.max(1, weight)), // Visual prominence scale (1 - 10)
     };
   });
 
-  // Keep a clean, prominent selection (top 20 terms max)
-  return results.slice(0, 20).map(({ term, weight }) => ({ term, weight }));
+  return results;
 }
 
 /**
