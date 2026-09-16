@@ -84,14 +84,17 @@ export default function InputSelection({ onSelectMode }) {
   const activeResult = recordAnalysis.analysisResult || uploadAnalysis.analysisResult;
   const isAnalyzing = recordAnalysis.isAnalyzing || uploadAnalysis.isAnalyzing;
   const resultRef = useRef(null);
+  const lastScrolledResultRef = useRef(null);
 
   useEffect(() => {
-    if (activeResult && resultRef.current) {
+    if (activeResult && activeResult !== lastScrolledResultRef.current && resultRef.current) {
+      lastScrolledResultRef.current = activeResult;
       resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [activeResult]);
 
   const handleResetAll = () => {
+    lastScrolledResultRef.current = null;
     recordAnalysis.resetAnalysis();
     uploadAnalysis.resetAnalysis();
     discardRecording();
@@ -664,7 +667,7 @@ export default function InputSelection({ onSelectMode }) {
 
       {/* Word Cloud Result Section (State 3 & 4) */}
       {activeResult && (
-        <div ref={resultRef} className="w-full">
+        <div ref={resultRef} className="w-full scroll-mt-20 sm:scroll-mt-24">
           <WordCloud result={activeResult} onReset={handleResetAll} />
         </div>
       )}

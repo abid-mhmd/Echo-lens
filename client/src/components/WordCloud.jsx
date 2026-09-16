@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { toPng } from 'html-to-image';
 
 /**
@@ -83,6 +83,8 @@ export default function WordCloud({ result, onReset }) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
   const cloudRef = useRef(null);
+  const transcriptRef = useRef(null);
+  const shouldScrollToTranscriptRef = useRef(false);
 
   const rawTerms = useMemo(() => {
     return Array.isArray(result?.terms) ? result.terms : [];
@@ -94,6 +96,35 @@ export default function WordCloud({ result, onReset }) {
 
   const transcript = result?.transcript || '';
   const meta = result?.meta || {};
+
+  // Reset transcript visibility on re-analysis / when result changes
+  useEffect(() => {
+    setShowTranscript(false);
+    shouldScrollToTranscriptRef.current = false;
+  }, [result]);
+
+  const handleTranscriptClick = useCallback(() => {
+    if (!showTranscript) {
+      shouldScrollToTranscriptRef.current = true;
+      setShowTranscript(true);
+    } else {
+      transcriptRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  }, [showTranscript]);
+
+  // Smoothly scroll to transcript immediately after it is revealed in DOM
+  useEffect(() => {
+    if (showTranscript && shouldScrollToTranscriptRef.current) {
+      shouldScrollToTranscriptRef.current = false;
+      transcriptRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  }, [showTranscript]);
 
   const handleDownloadPng = useCallback(async () => {
     if (!cloudRef.current || isExporting) return;
@@ -206,13 +237,15 @@ export default function WordCloud({ result, onReset }) {
           {transcript && (
             <button
               type="button"
-              onClick={() => setShowTranscript(!showTranscript)}
+              id="transcript-btn"
+              onClick={handleTranscriptClick}
               className="px-3 py-1.5 rounded-lg bg-charcoal-850 hover:bg-charcoal-800 border border-charcoal-700 text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1.5 focus:outline-none"
+              title="Jump to Full Audio Transcript"
             >
               <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span>{showTranscript ? 'Hide Transcript' : 'View Transcript'}</span>
+              <span>Transcript</span>
             </button>
           )}
 
@@ -304,9 +337,13 @@ export default function WordCloud({ result, onReset }) {
         )}
       </div>
 
-      {/* Expandable Transcript Panel */}
+      {/* Transcript Section (Revealed when Transcript button is clicked) */}
       {showTranscript && transcript && (
-        <div className="bg-[#090D18] border border-charcoal-800 rounded-xl p-5 sm:p-6 text-slate-300 text-xs sm:text-sm leading-relaxed space-y-2 animate-fadeIn">
+        <div
+          id="transcript-section"
+          ref={transcriptRef}
+          className="bg-[#090D18] border border-charcoal-800 rounded-xl p-5 sm:p-6 text-slate-300 text-xs sm:text-sm leading-relaxed space-y-2 animate-fadeIn scroll-mt-20 sm:scroll-mt-24"
+        >
           <div className="flex items-center justify-between pb-2 border-b border-charcoal-800/60">
             <span className="font-semibold text-white tracking-wide text-xs uppercase text-slate-400">
               Full Audio Transcript
