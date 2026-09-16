@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
+import { toPng } from 'html-to-image';
 
 /**
  * Maps an integer weight (1 - 10) to responsive font size and styling tiers.
@@ -79,6 +80,9 @@ function organizeCloudLayout(terms) {
  */
 export default function WordCloud({ result, onReset }) {
   const [showTranscript, setShowTranscript] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const cloudRef = useRef(null);
 
   const rawTerms = useMemo(() => {
     return Array.isArray(result?.terms) ? result.terms : [];
@@ -90,6 +94,55 @@ export default function WordCloud({ result, onReset }) {
 
   const transcript = result?.transcript || '';
   const meta = result?.meta || {};
+
+  const handleDownloadPng = useCallback(async () => {
+    if (!cloudRef.current || isExporting) return;
+    try {
+      setIsExporting(true);
+      setExportError(null);
+
+      // Ensure web fonts are completely loaded before capturing canvas
+      if (document.fonts?.ready) {
+        try {
+          await document.fonts.ready;
+        } catch {}
+      }
+
+      let dataUrl;
+      try {
+        dataUrl = await toPng(cloudRef.current, {
+          cacheBust: true,
+          pixelRatio: 2,
+          backgroundColor: '#0C101D',
+        });
+      } catch {
+        // Resilient fallback if font fetching encounters network or CORS restrictions
+        dataUrl = await toPng(cloudRef.current, {
+          cacheBust: true,
+          pixelRatio: 2,
+          backgroundColor: '#0C101D',
+          skipFonts: true,
+        });
+      }
+
+      const rawName = meta?.filename || 'audio';
+      const cleanName =
+        rawName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'wordcloud';
+      const downloadFilename = `echolens-${cleanName}-wordcloud.png`;
+
+      const link = document.createElement('a');
+      link.download = downloadFilename;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export word cloud as PNG:', err);
+      setExportError('Unable to generate image. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [cloudRef, isExporting, meta?.filename]);
 
   // STATE 4: No terms returned by analysis
   if (rawTerms.length === 0) {
@@ -149,7 +202,7 @@ export default function WordCloud({ result, onReset }) {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3 self-start sm:self-auto">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 self-start sm:self-auto flex-wrap gap-y-2">
           {transcript && (
             <button
               type="button"
@@ -162,6 +215,29 @@ export default function WordCloud({ result, onReset }) {
               <span>{showTranscript ? 'Hide Transcript' : 'View Transcript'}</span>
             </button>
           )}
+
+          <button
+            type="button"
+            id="download-wordcloud-png"
+            onClick={handleDownloadPng}
+            disabled={isExporting}
+            className="px-3 py-1.5 rounded-lg bg-charcoal-850 hover:bg-charcoal-800 border border-charcoal-700 text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1.5 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Download visible word cloud as PNG"
+          >
+            {isExporting ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-accent-light border-t-transparent rounded-full animate-spin" />
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5 text-accent-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Download PNG</span>
+              </>
+            )}
+          </button>
 
           {onReset && (
             <button
@@ -178,26 +254,32 @@ export default function WordCloud({ result, onReset }) {
         </div>
       </div>
 
+      {exportError && (
+        <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2 text-center">
+          {exportError}
+        </div>
+      )}
+
       {/* Main Cloud Canvas Card */}
-      <div className="w-full bg-[#0C101D] border border-charcoal-800 rounded-2xl p-6 sm:p-10 md:p-12 shadow-2xl relative overflow-hidden">
+      <div ref={cloudRef} className="w-full bg-[#0C101D] border border-charcoal-800 rounded-2xl p-6 sm:p-10 md:p-12 shadow-2xl relative overflow-hidden">
         {/* Subtle background glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
 
         {/* Word Cloud Flex Container */}
-        <div className="w-full flex flex-wrap items-center justify-center gap-2.5 sm:gap-3.5 md:gap-4.5 relative z-10 select-none">
+        <div className="w-full flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-5 relative z-10 select-none">
           {displayTerms.map((item, idx) => {
             const tier = getWeightTier(item.weight);
             return (
               <div
                 key={`${item.term}-${idx}`}
-                className={`group inline-flex items-center rounded-xl sm:rounded-2xl border transition-all duration-200 hover:scale-105 active:scale-95 cursor-default break-words max-w-full ${tier.bgClass} ${tier.paddingClass}`}
+                className={`group inline-flex items-center rounded-xl sm:rounded-2xl border transition-all duration-200 hover:scale-105 active:scale-95 cursor-default max-w-full ${tier.bgClass} ${tier.paddingClass}`}
                 title={`Term: "${item.term}" (Weight: ${item.weight}/10)`}
               >
-                <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center break-words`}>
+                <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
                 <span
-                  className={`ml-1.5 sm:ml-2 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold leading-none opacity-70 group-hover:opacity-100 transition-opacity ${tier.badgeClass}`}
+                  className={`ml-1.5 sm:ml-2 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold leading-none opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0 ${tier.badgeClass}`}
                   aria-label={`Weight ${item.weight}`}
                 >
                   {item.weight}
