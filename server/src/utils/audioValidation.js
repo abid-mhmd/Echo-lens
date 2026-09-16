@@ -1,10 +1,12 @@
+import { parseBuffer } from 'music-metadata';
+
 /**
  * Audio Validation Utilities
  * Centralized, reusable audio validation constraints and helper functions.
  */
 
 export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
-export const MAX_AUDIO_DURATION_SECONDS = 600; // 10 minutes
+export const MAX_AUDIO_DURATION_SECONDS = 600; // 10 minutes (600 seconds)
 
 export const SUPPORTED_EXTENSIONS = [
   'mp3',
@@ -64,7 +66,37 @@ export function isValidAudioFormat(file) {
 }
 
 /**
- * Validates audio duration
+ * Validates audio file presence, format, and byte size
+ * @param {Express.Multer.File} file
+ * @returns {{ isValid: boolean, error?: string }}
+ */
+export function validateAudioFile(file) {
+  if (!file || !file.buffer || file.size === 0) {
+    return {
+      isValid: false,
+      error: 'No audio file provided. Please record or upload an audio file.',
+    };
+  }
+
+  if (!isValidAudioFormat(file)) {
+    return {
+      isValid: false,
+      error: 'Unsupported audio format. Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.',
+    };
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return {
+      isValid: false,
+      error: 'File size exceeds maximum limit of 25 MB.',
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validates optional duration provided via request body
  * @param {string|number} durationInput
  * @returns {{ isValid: boolean, error?: string, duration?: number|null }}
  */
@@ -89,31 +121,37 @@ export function validateAudioDuration(durationInput) {
 }
 
 /**
- * Validates audio file presence, format, and size
+ * Independently inspects and validates the actual audio duration from the audio buffer
+ * using music-metadata. Ensures audio longer than 10 minutes is rejected prior to AI processing.
  * @param {Express.Multer.File} file
- * @returns {{ isValid: boolean, error?: string }}
+ * @returns {Promise<{ isValid: boolean, error?: string, duration?: number|null }>}
  */
-export function validateAudioFile(file) {
-  if (!file) {
-    return {
-      isValid: false,
-      error: 'No audio file provided. Please record or upload an audio file.',
-    };
+export async function validateActualAudioDuration(file) {
+  if (!file || !file.buffer) {
+    return { isValid: false, error: 'Audio file buffer is required.' };
   }
 
-  if (!isValidAudioFormat(file)) {
-    return {
-      isValid: false,
-      error: 'Unsupported audio format. Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.',
-    };
+  try {
+    const metadata = await parseBuffer(file.buffer, {
+      mimeType: file.mimetype,
+      size: file.size,
+    });
+
+    const duration = metadata?.format?.duration;
+    if (typeof duration === 'number' && duration > 0) {
+      if (duration > MAX_AUDIO_DURATION_SECONDS) {
+        return {
+          isValid: false,
+          error: 'Audio duration exceeds maximum limit of 10 minutes (600 seconds).',
+          duration: Math.round(duration * 10) / 10,
+        };
+      }
+      return { isValid: true, duration: Math.round(duration * 10) / 10 };
+    }
+  } catch {
+    // If format duration parsing is not supported for specific incomplete/raw stream containers,
+    // we do not reject valid streams, but pass through to durationInput validation.
   }
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    return {
-      isValid: false,
-      error: 'File size exceeds maximum limit of 25 MB.',
-    };
-  }
-
-  return { isValid: true };
+  return { isValid: true, duration: null };
 }

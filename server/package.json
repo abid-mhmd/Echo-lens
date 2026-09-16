@@ -2,16 +2,18 @@
   "name": "echo-lens-server",
   "version": "1.0.0",
   "description": "Echo Lens Express Backend API",
-  "main": "index.js",
+  "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
   },
   "dependencies": {
+    "@google/genai": "^2.22.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "music-metadata": "^11.15.0"
   }
 }
