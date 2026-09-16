@@ -1,7 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useAudioUpload } from '../hooks/useAudioUpload';
 import { useAudioAnalysis } from '../hooks/useAudioAnalysis';
+import WordCloud from './WordCloud';
 
 function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -77,6 +78,23 @@ export default function InputSelection({ onSelectMode }) {
 
   const handleDiscardFile = () => {
     uploadAnalysis.resetAnalysis();
+    discardFile();
+  };
+
+  const activeResult = recordAnalysis.analysisResult || uploadAnalysis.analysisResult;
+  const isAnalyzing = recordAnalysis.isAnalyzing || uploadAnalysis.isAnalyzing;
+  const resultRef = useRef(null);
+
+  useEffect(() => {
+    if (activeResult && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [activeResult]);
+
+  const handleResetAll = () => {
+    recordAnalysis.resetAnalysis();
+    uploadAnalysis.resetAnalysis();
+    discardRecording();
     discardFile();
   };
 
@@ -298,18 +316,15 @@ export default function InputSelection({ onSelectMode }) {
                 </div>
               )}
 
-              {/* Analysis Temporary Success Confirmation */}
+              {/* Analysis Success Confirmation */}
               {recordAnalysis.analysisResult && (
-                <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-200 space-y-1.5 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-200 space-y-1 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                   <div className="flex items-center space-x-2 font-semibold text-emerald-300">
                     <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>Audio Received & Validated by Backend</span>
+                    <span>Analysis Complete • {recordAnalysis.analysisResult.terms?.length || 0} prominent terms</span>
                   </div>
-                  <p className="text-[11px] text-emerald-300/80 pl-6">
-                    File: {recordAnalysis.analysisResult.file?.name} • Size: {Math.round((recordAnalysis.analysisResult.file?.size || 0) / 1024)} KB • Duration: {formatDuration(recordAnalysis.analysisResult.file?.duration || recordingTime)}
-                  </p>
                 </div>
               )}
 
@@ -480,18 +495,15 @@ export default function InputSelection({ onSelectMode }) {
                 </div>
               )}
 
-              {/* Analysis Temporary Success Confirmation */}
+              {/* Analysis Success Confirmation */}
               {uploadAnalysis.analysisResult && (
-                <div className="p-3.5 rounded-xl bg-purple-950/50 border border-purple-500/40 text-xs text-purple-200 space-y-1.5 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+                <div className="p-3.5 rounded-xl bg-purple-950/50 border border-purple-500/40 text-xs text-purple-200 space-y-1 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
                   <div className="flex items-center space-x-2 font-semibold text-purple-300">
                     <svg className="w-4 h-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>Audio Received & Validated by Backend</span>
+                    <span>Analysis Complete • {uploadAnalysis.analysisResult.terms?.length || 0} prominent terms</span>
                   </div>
-                  <p className="text-[11px] text-purple-300/80 pl-6">
-                    File: {uploadAnalysis.analysisResult.file?.name} • Size: {Math.round((uploadAnalysis.analysisResult.file?.size || 0) / 1024)} KB • Duration: {formatDuration(uploadAnalysis.analysisResult.file?.duration || fileMetadata?.duration || 0)}
-                  </p>
                 </div>
               )}
 
@@ -636,6 +648,26 @@ export default function InputSelection({ onSelectMode }) {
           )}
         </div>
       </div>
+
+      {/* Loading State Banner during AI processing */}
+      {isAnalyzing && (
+        <div className="w-full max-w-xl mx-auto mt-8 bg-[#0C101D] border border-charcoal-800 rounded-2xl p-6 sm:p-8 text-center space-y-3 shadow-xl animate-pulse">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="space-y-1">
+            <h3 className="text-sm sm:text-base font-semibold text-white">Synthesizing discussion themes...</h3>
+            <p className="text-xs text-slate-400">
+              Transcribing speech and extracting weighted concepts with Gemini AI.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Word Cloud Result Section (State 3 & 4) */}
+      {activeResult && (
+        <div ref={resultRef} className="w-full">
+          <WordCloud result={activeResult} onReset={handleResetAll} />
+        </div>
+      )}
 
       {/* Footer Format & Limits Metadata */}
       <div className="mt-8 text-center text-xs text-slate-400 tracking-wide">
