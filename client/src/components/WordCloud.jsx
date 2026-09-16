@@ -5,50 +5,60 @@ import { toPng } from 'html-to-image';
  * Maps an integer weight (1 - 10) to responsive font size and styling tiers.
  * Guarantees readable typography and prevents horizontal overflow on small screens (390px).
  */
-function getWeightTier(weight) {
+function getWeightTier(weight, isExport = false) {
   const w = Math.min(10, Math.max(1, parseInt(weight, 10) || 1));
 
   if (w >= 9) {
     return {
-      sizeClass: 'text-2xl sm:text-3xl md:text-5xl font-black tracking-tight',
+      sizeClass: isExport
+        ? 'text-5xl font-black tracking-tight'
+        : 'text-2xl sm:text-3xl md:text-5xl font-black tracking-tight',
       colorClass: 'text-white bg-gradient-to-r from-accent-light via-white to-accent-light bg-clip-text text-transparent',
       bgClass: 'bg-accent/20 border-accent/50 shadow-[0_0_25px_rgba(93,95,239,0.3)] hover:border-accent',
-      paddingClass: 'px-4 py-2 sm:px-5 sm:py-2.5',
+      paddingClass: isExport ? 'px-5 py-2.5' : 'px-4 py-2 sm:px-5 sm:py-2.5',
       badgeClass: 'bg-accent text-white',
     };
   }
   if (w >= 7) {
     return {
-      sizeClass: 'text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight',
+      sizeClass: isExport
+        ? 'text-3xl font-extrabold tracking-tight'
+        : 'text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight',
       colorClass: 'text-white',
       bgClass: 'bg-charcoal-800/90 border-charcoal-700 shadow-md hover:border-accent/40',
-      paddingClass: 'px-3.5 py-1.5 sm:px-4 sm:py-2',
+      paddingClass: isExport ? 'px-4 py-2' : 'px-3.5 py-1.5 sm:px-4 sm:py-2',
       badgeClass: 'bg-charcoal-700 text-slate-200',
     };
   }
   if (w >= 5) {
     return {
-      sizeClass: 'text-lg sm:text-xl md:text-2xl font-bold',
+      sizeClass: isExport
+        ? 'text-2xl font-bold'
+        : 'text-lg sm:text-xl md:text-2xl font-bold',
       colorClass: 'text-slate-100',
       bgClass: 'bg-charcoal-850/70 border-charcoal-750 hover:border-slate-600',
-      paddingClass: 'px-3 py-1 sm:px-3.5 sm:py-1.5',
+      paddingClass: isExport ? 'px-3.5 py-1.5' : 'px-3 py-1 sm:px-3.5 sm:py-1.5',
       badgeClass: 'bg-charcoal-800 text-slate-300',
     };
   }
   if (w >= 3) {
     return {
-      sizeClass: 'text-sm sm:text-base md:text-lg font-medium',
+      sizeClass: isExport
+        ? 'text-lg font-medium'
+        : 'text-sm sm:text-base md:text-lg font-medium',
       colorClass: 'text-slate-300',
       bgClass: 'bg-charcoal-900/60 border-charcoal-800 hover:border-slate-700',
-      paddingClass: 'px-2.5 py-1 sm:px-3 sm:py-1',
+      paddingClass: isExport ? 'px-3 py-1' : 'px-2.5 py-1 sm:px-3 sm:py-1',
       badgeClass: 'bg-charcoal-850 text-slate-400',
     };
   }
   return {
-    sizeClass: 'text-xs sm:text-sm font-normal',
+    sizeClass: isExport
+      ? 'text-sm font-normal'
+      : 'text-xs sm:text-sm font-normal',
     colorClass: 'text-slate-400',
     bgClass: 'bg-charcoal-950/40 border-charcoal-800/60 hover:border-slate-700',
-    paddingClass: 'px-2 py-0.5 sm:px-2.5 sm:py-1',
+    paddingClass: isExport ? 'px-2.5 py-1' : 'px-2 py-0.5 sm:px-2.5 sm:py-1',
     badgeClass: 'bg-charcoal-900 text-slate-500',
   };
 }
@@ -83,6 +93,7 @@ export default function WordCloud({ result, onReset }) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
   const cloudRef = useRef(null);
+  const exportRef = useRef(null);
   const transcriptRef = useRef(null);
   const shouldScrollToTranscriptRef = useRef(false);
 
@@ -127,7 +138,8 @@ export default function WordCloud({ result, onReset }) {
   }, [showTranscript]);
 
   const handleDownloadPng = useCallback(async () => {
-    if (!cloudRef.current || isExporting) return;
+    const targetNode = exportRef.current || cloudRef.current;
+    if (!targetNode || isExporting) return;
     try {
       setIsExporting(true);
       setExportError(null);
@@ -139,19 +151,26 @@ export default function WordCloud({ result, onReset }) {
         } catch {}
       }
 
+      const exportOptions = {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#0C101D',
+        width: 900,
+        style: {
+          position: 'static',
+          left: '0',
+          top: '0',
+          width: '900px',
+        },
+      };
+
       let dataUrl;
       try {
-        dataUrl = await toPng(cloudRef.current, {
-          cacheBust: true,
-          pixelRatio: 2,
-          backgroundColor: '#0C101D',
-        });
+        dataUrl = await toPng(targetNode, exportOptions);
       } catch {
         // Resilient fallback if font fetching encounters network or CORS restrictions
-        dataUrl = await toPng(cloudRef.current, {
-          cacheBust: true,
-          pixelRatio: 2,
-          backgroundColor: '#0C101D',
+        dataUrl = await toPng(targetNode, {
+          ...exportOptions,
           skipFonts: true,
         });
       }
@@ -173,7 +192,7 @@ export default function WordCloud({ result, onReset }) {
     } finally {
       setIsExporting(false);
     }
-  }, [cloudRef, isExporting, meta?.filename]);
+  }, [exportRef, cloudRef, isExporting, meta?.filename]);
 
   // STATE 4: No terms returned by analysis
   if (rawTerms.length === 0) {
@@ -335,6 +354,47 @@ export default function WordCloud({ result, onReset }) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Dedicated fixed-dimension export container for clean PNG export */}
+      <div
+        ref={exportRef}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: 0,
+          width: '900px',
+          backgroundColor: '#0C101D',
+          pointerEvents: 'none',
+          zIndex: -50,
+        }}
+        className="p-10 relative overflow-hidden select-none"
+      >
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Word Cloud Flex Container */}
+        <div className="w-full flex flex-wrap items-center justify-center gap-4 relative z-10 select-none">
+          {displayTerms.map((item, idx) => {
+            const tier = getWeightTier(item.weight, true);
+            return (
+              <div
+                key={`export-${item.term}-${idx}`}
+                className={`inline-flex items-center rounded-2xl border cursor-default ${tier.bgClass} ${tier.paddingClass}`}
+              >
+                <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
+                  {item.term}
+                </span>
+                <span
+                  className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold leading-none opacity-80 flex-shrink-0 ${tier.badgeClass}`}
+                >
+                  {item.weight}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Transcript Section (Revealed when Transcript button is clicked) */}
