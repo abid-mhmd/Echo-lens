@@ -208,24 +208,68 @@ export async function processAudioAnalysis(file, duration) {
       },
     };
   } catch (error) {
-    if (error instanceof AppError) throw error;
-
-    const msg = error?.message || '';
-    const status = error?.status || error?.statusCode;
-
-    if (status === 401 || status === 403 || msg.includes('API_KEY_INVALID') || msg.includes('PERMISSION_DENIED')) {
-      throw new AppError('Gemini API authentication failed. The provided API key was rejected by Google Gemini.', 401);
-    }
-    if (status === 429 || msg.includes('RESOURCE_EXHAUSTED') || msg.toLowerCase().includes('quota')) {
-      throw new AppError('Gemini API rate limit or quota exceeded. Please wait a moment and try again.', 429);
-    }
-    if (status === 404 || msg.includes('NOT_FOUND')) {
-      throw new AppError('The configured Gemini model is currently unavailable or unsupported.', 502);
-    }
-    if (msg.includes('fetch failed') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT')) {
-      throw new AppError('AI service is temporarily unavailable. Unable to connect to Google Gemini API.', 503);
-    }
-
-    throw new AppError('The AI audio analysis service encountered an issue. Please try again.', 502);
+    throw mapGeminiError(error);
   }
+}
+
+/**
+ * Maps provider errors to clean, user-safe domain errors with appropriate HTTP status codes
+ */
+function mapGeminiError(error) {
+  if (error instanceof AppError) return error;
+
+  const msg = error?.message || '';
+  const status = error?.status || error?.statusCode;
+  const lower = msg.toLowerCase();
+
+  // 1. Authentication / API key rejection (401)
+  if (
+    status === 401 ||
+    status === 403 ||
+    msg.includes('API_KEY_INVALID') ||
+    lower.includes('api key not valid') ||
+    msg.includes('PERMISSION_DENIED')
+  ) {
+    return new AppError('Gemini API authentication failed. Please check your API key.', 401);
+  }
+
+  // 2. Quota / Rate limit (429 / RESOURCE_EXHAUSTED)
+  if (status === 429 || msg.includes('RESOURCE_EXHAUSTED') || lower.includes('quota') || lower.includes('rate limit')) {
+    const isDailyQuota =
+      lower.includes('perday') ||
+      lower.includes('per day') ||
+      lower.includes('daily') ||
+      lower.includes('free_tier_requests') ||
+      lower.includes('free tier');
+
+    if (isDailyQuota) {
+      return new AppError('AI analysis quota has been reached. Please try again later.', 429);
+    }
+    return new AppError('AI service is temporarily unavailable. Please try again later.', 429);
+  }
+
+  // 3. Invalid model / Model unavailable (502)
+  if (status === 404 || msg.includes('NOT_FOUND') || lower.includes('model not found') || lower.includes('not supported')) {
+    return new AppError('The configured Gemini model is currently unavailable or unsupported.', 502);
+  }
+
+  // 4. Invalid client request (400)
+  if (status === 400 || msg.includes('INVALID_ARGUMENT')) {
+    return new AppError('Invalid audio analysis request. Please try a different audio sample.', 400);
+  }
+
+  // 5. Temporary service failure or network connectivity (503)
+  if (
+    status === 503 ||
+    msg.includes('UNAVAILABLE') ||
+    lower.includes('high demand') ||
+    msg.includes('fetch failed') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ETIMEDOUT')
+  ) {
+    return new AppError('AI service is temporarily unavailable. Please try again later.', 503);
+  }
+
+  // 6. Generic sanitized fallback (502)
+  return new AppError('The AI audio analysis service encountered an issue. Please try again.', 502);
 }
