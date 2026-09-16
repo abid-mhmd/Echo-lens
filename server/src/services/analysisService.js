@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { AssemblyAI } from 'assemblyai';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -17,10 +17,10 @@ export class AppError extends Error {
 }
 
 /**
- * Initialize Google GenAI client, loading server/.env if needed
+ * Initialize AssemblyAI client, loading server/.env if needed
  */
-function getGenAIClient() {
-  let apiKey = process.env.GEMINI_API_KEY;
+function getAssemblyAIClient() {
+  let apiKey = process.env.ASSEMBLYAI_API_KEY;
 
   if (!apiKey || !apiKey.trim()) {
     try {
@@ -28,248 +28,255 @@ function getGenAIClient() {
       const envPath = path.resolve(__dirname, '../../.env');
       if (fs.existsSync(envPath)) {
         dotenv.config({ path: envPath });
-        apiKey = process.env.GEMINI_API_KEY;
+        apiKey = process.env.ASSEMBLYAI_API_KEY;
       }
     } catch { }
   }
 
   if (!apiKey || !apiKey.trim()) {
     throw new AppError(
-      'Gemini API service is not configured. Please set the GEMINI_API_KEY environment variable on the server.',
+      'AssemblyAI API service is not configured. Please set the ASSEMBLYAI_API_KEY environment variable on the server.',
       503
     );
   }
 
-  return new GoogleGenAI({ apiKey: apiKey.trim() });
+  return new AssemblyAI({ apiKey: apiKey.trim() });
 }
 
 /**
- * Transcribe audio using Gemini Files API and generateContent
+ * Common English stopwords, conjunctions, pronouns, and conversational fillers
  */
-async function transcribeAudioWithGemini(ai, file, modelName) {
-  const tempFilePath = path.join(os.tmpdir(), `echolens-${Date.now()}-${file.originalname || 'audio.wav'}`);
-  let uploadedFile = null;
+const STOP_WORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren',
+  'arent', 'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but',
+  'by', 'can', 'cant', 'cannot', 'could', 'couldnt', 'did', 'didnt', 'do', 'does', 'doesnt', 'doing',
+  'dont', 'down', 'during', 'each', 'few', 'for', 'from', 'further', 'had', 'hadnt', 'has', 'hasnt',
+  'have', 'havent', 'having', 'he', 'hed', 'hell', 'hes', 'her', 'here', 'heres', 'hers', 'herself',
+  'him', 'himself', 'his', 'how', 'hows', 'i', 'id', 'ill', 'im', 'ive', 'if', 'in', 'into', 'is',
+  'isnt', 'it', 'its', 'itself', 'lets', 'me', 'more', 'most', 'mustnt', 'my', 'myself', 'no', 'nor',
+  'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours', 'ourselves', 'out',
+  'over', 'own', 'same', 'shant', 'she', 'shed', 'shell', 'shes', 'should', 'shouldnt', 'so', 'some',
+  'such', 'than', 'that', 'thats', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there',
+  'theres', 'these', 'they', 'theyd', 'theyll', 'theyre', 'theyve', 'this', 'those', 'through', 'to',
+  'too', 'under', 'until', 'up', 'very', 'was', 'wasnt', 'we', 'wed', 'well', 'were', 'werent', 'what',
+  'whats', 'when', 'whens', 'where', 'wheres', 'which', 'while', 'who', 'whos', 'whom', 'why', 'whys',
+  'with', 'wont', 'would', 'wouldnt', 'you', 'youd', 'youll', 'youre', 'youve', 'your', 'yours',
+  'yourself', 'yourselves',
+  // Conversational noise & fillers
+  'um', 'uh', 'er', 'ah', 'like', 'actually', 'basically', 'literally', 'really', 'just', 'also',
+  'yeah', 'yep', 'okay', 'right', 'know', 'mean', 'thing', 'things', 'going', 'gonna', 'got', 'get',
+  'want', 'think', 'say', 'said', 'much', 'see', 'make', 'take', 'come', 'go', 'give', 'one', 'two',
+  'even', 'now', 'back', 'well', 'good', 'new', 'first', 'last', 'way', 'look', 'looks'
+]);
+
+/**
+ * Normalizes a raw word for concept aggregation and removes punctuation/plurals
+ */
+function normalizeWord(word) {
+  let w = word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
+  if (!w || w.length < 3 || STOP_WORDS.has(w) || /^\d+$/.test(w)) return null;
+
+  // Simple plural and tense normalization
+  if (w.endsWith('ies') && w.length > 4) {
+    w = w.slice(0, -3) + 'y';
+  } else if (w.endsWith('ing') && w.length > 5) {
+    w = w.slice(0, -3);
+  } else if (w.endsWith('ed') && w.length > 4) {
+    w = w.slice(0, -2);
+  } else if (w.endsWith('es') && w.length > 4 && !w.endsWith('ss')) {
+    w = w.slice(0, -2);
+  } else if (w.endsWith('s') && w.length > 3 && !w.endsWith('ss')) {
+    w = w.slice(0, -1);
+  }
+
+  if (STOP_WORDS.has(w) || w.length < 3) return null;
+  return w;
+}
+
+/**
+ * Extracts normalized prominent discussion concepts and calculates weights (1 - 10)
+ */
+export function extractTermsFromTranscript(transcriptText) {
+  if (!transcriptText || typeof transcriptText !== 'string') return [];
+
+  const rawWords = transcriptText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) || [];
+  const counts = new Map();
+  const displayNames = new Map();
+
+  for (const raw of rawWords) {
+    const norm = normalizeWord(raw);
+    if (!norm) continue;
+
+    counts.set(norm, (counts.get(norm) || 0) + 1);
+
+    const cleanRaw = raw.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+    if (!displayNames.has(norm)) {
+      displayNames.set(norm, cleanRaw.charAt(0).toUpperCase() + cleanRaw.slice(1));
+    } else if (cleanRaw.length > displayNames.get(norm).length) {
+      displayNames.set(norm, cleanRaw.charAt(0).toUpperCase() + cleanRaw.slice(1));
+    }
+  }
+
+  if (counts.size === 0) return [];
+
+  const entries = Array.from(counts.entries());
+  let maxCount = 1;
+  let minCount = Infinity;
+  for (const [, count] of entries) {
+    if (count > maxCount) maxCount = count;
+    if (count < minCount) minCount = count;
+  }
+
+  // Generate weights from 1 to 10 with smooth tiered distribution
+  const terms = entries.map(([norm, count]) => {
+    let weight;
+    if (maxCount === minCount) {
+      weight = count > 1 ? 8 : 5;
+    } else {
+      const ratio = (count - minCount) / (maxCount - minCount);
+      weight = Math.round(3 + ratio * 7); // scales from 3 to 10
+    }
+    return {
+      term: displayNames.get(norm) || norm,
+      weight: Math.min(10, Math.max(1, weight)),
+      count,
+    };
+  });
+
+  terms.sort((a, b) => b.count - a.count || b.weight - a.weight);
+  return terms.slice(0, 25).map(({ term, weight }) => ({ term, weight }));
+}
+
+/**
+ * Transcribes audio buffer using the official AssemblyAI SDK
+ */
+async function transcribeAudioWithAssemblyAI(client, file) {
+  const tempFilePath = path.join(
+    os.tmpdir(),
+    `echolens-${Date.now()}-${file.originalname || 'audio.wav'}`
+  );
 
   try {
     await fs.promises.writeFile(tempFilePath, file.buffer);
 
-    uploadedFile = await ai.files.upload({
-      file: tempFilePath,
-      config: {
-        mimeType: file.mimetype,
-        displayName: file.originalname || 'audio-sample',
-      },
+    const transcript = await client.transcripts.transcribe({
+      audio: tempFilePath,
     });
 
-    const modelToUse = modelName && modelName !== 'gemini-3.5-transcribe' ? modelName : 'gemini-3.6-flash';
+    if (transcript.status === 'error') {
+      throw new Error(transcript.error || 'AssemblyAI transcription failed.');
+    }
 
-    const response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: [
-        {
-          fileData: {
-            fileUri: uploadedFile.uri,
-            mimeType: uploadedFile.mimeType || file.mimetype,
-          },
-        },
-        'Accurately transcribe all spoken dialogue. Remove disfluencies, stuttering, and conversational filler words. If the audio is completely silent or contains no discernible speech, output only "[NO_SPEECH]".',
-      ],
-    });
-
-    return (response.text || '').trim();
+    return (transcript.text || '').trim();
   } finally {
     fs.promises.unlink(tempFilePath).catch(() => { });
-    if (uploadedFile?.name) {
-      ai.files.delete({ name: uploadedFile.name }).catch(() => { });
-    }
   }
 }
 
 /**
- * Extract prominent terms and weights (1-10) using structured JSON output
- */
-async function extractProminentTermsWithGemini(ai, transcriptText, modelName) {
-  const prompt = `Analyze the following speech transcript and extract the most prominent, high-value discussion concepts and terms for a word cloud.
-Assign each term an integer weight from 1 to 10 based on prominence and importance.
-
-Transcript:
-"""
-${transcriptText}
-"""`;
-
-  const config = {
-    responseMimeType: 'application/json',
-    responseSchema: {
-      type: Type.OBJECT,
-      properties: {
-        transcript: {
-          type: Type.STRING,
-          description: 'The cleaned speech transcript',
-        },
-        terms: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              term: { type: Type.STRING },
-              weight: { type: Type.INTEGER },
-            },
-            required: ['term', 'weight'],
-          },
-        },
-      },
-      required: ['transcript', 'terms'],
-    },
-  };
-
-  const modelToUse = modelName && modelName !== 'gemini-3.7-flash' ? modelName : 'gemini-3.6-flash';
-
-  let response;
-  try {
-    response = await ai.models.generateContent({
-      model: modelToUse,
-      contents: prompt,
-      config,
-    });
-  } catch (err) {
-    if (modelToUse !== 'gemini-3.6-flash') {
-      response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-        config,
-      });
-    } else {
-      throw err;
-    }
-  }
-
-  try {
-    return JSON.parse(response.text || '{}');
-  } catch {
-    throw new AppError('Failed to parse structured AI response.', 502);
-  }
-}
-
-/**
- * Process audio analysis end-to-end
+ * Process audio analysis end-to-end: Speech-to-Text -> Term Extraction -> Result
  */
 export async function processAudioAnalysis(file, duration) {
-  const ai = getGenAIClient();
-  const transcriptionModel = process.env.GEMINI_TRANSCRIPTION_MODEL || 'gemini-3.6-flash';
-  const extractionModel = process.env.GEMINI_EXTRACTION_MODEL || 'gemini-3.6-flash';
+  const client = getAssemblyAIClient();
 
   try {
-    // 1. Audio Transcription
-    const transcriptText = await transcribeAudioWithGemini(ai, file, transcriptionModel);
+    // 1. Speech-to-Text Transcription via AssemblyAI
+    const transcriptText = await transcribeAudioWithAssemblyAI(client, file);
 
-    // 2. Validate speech presence
+    // 2. Validate meaningful speech presence
     if (
       !transcriptText ||
-      transcriptText === '[NO_SPEECH]' ||
       transcriptText.replace(/[^a-zA-Z0-9]/g, '').length < 2
     ) {
-      throw new AppError('No meaningful speech detected in the audio. Please check your microphone and speak clearly.', 422);
+      throw new AppError(
+        'No meaningful speech detected in the audio. Please check your microphone and speak clearly.',
+        422
+      );
     }
 
-    // 3. Prominent Term Extraction
-    const result = await extractProminentTermsWithGemini(ai, transcriptText, extractionModel);
+    // 3. Normalized Term Extraction
+    const validatedTerms = extractTermsFromTranscript(transcriptText);
 
-    const finalTranscript = result.transcript || transcriptText;
-    const rawTerms = Array.isArray(result.terms) ? result.terms : [];
-
-    const termMap = new Map();
-    for (const item of rawTerms) {
-      if (item?.term && typeof item.term === 'string') {
-        const cleanTerm = item.term.trim();
-        if (cleanTerm.length > 0) {
-          const weight = Math.min(10, Math.max(1, parseInt(item.weight, 10) || 1));
-          const key = cleanTerm.toLowerCase();
-          if (!termMap.has(key) || termMap.get(key).weight < weight) {
-            termMap.set(key, { term: cleanTerm, weight });
-          }
-        }
-      }
-    }
-
-    const validatedTerms = Array.from(termMap.values()).sort((a, b) => b.weight - a.weight);
-
-    if (validatedTerms.length === 0 && finalTranscript.replace(/[^a-zA-Z0-9]/g, '').length < 3) {
-      throw new AppError('No meaningful speech detected in the audio. Please check your microphone and speak clearly.', 422);
+    if (validatedTerms.length === 0) {
+      throw new AppError(
+        'No meaningful speech detected in the audio. Please check your microphone and speak clearly.',
+        422
+      );
     }
 
     return {
       success: true,
-      transcript: finalTranscript,
+      transcript: transcriptText,
       terms: validatedTerms,
       meta: {
         duration: duration ?? null,
         filename: file.originalname || 'recording',
-        model: extractionModel,
+        model: 'AssemblyAI Speech-to-Text',
       },
     };
   } catch (error) {
-    throw mapGeminiError(error);
+    throw mapAssemblyAIError(error);
   }
 }
 
 /**
  * Maps provider errors to clean, user-safe domain errors with appropriate HTTP status codes
  */
-function mapGeminiError(error) {
+export function mapAssemblyAIError(error) {
   if (error instanceof AppError) return error;
 
   const msg = error?.message || '';
-  const status = error?.status || error?.statusCode;
+  const status =
+    error?.status ||
+    error?.statusCode ||
+    error?.code ||
+    error?.response?.status;
   const lower = msg.toLowerCase();
 
   // 1. Authentication / API key rejection (401)
   if (
     status === 401 ||
     status === 403 ||
-    msg.includes('API_KEY_INVALID') ||
-    lower.includes('api key not valid') ||
-    msg.includes('PERMISSION_DENIED')
+    lower.includes('api key') ||
+    lower.includes('authentication') ||
+    lower.includes('unauthorized') ||
+    lower.includes('forbidden')
   ) {
-    return new AppError('Gemini API authentication failed. Please check your API key.', 401);
+    return new AppError('AssemblyAI API authentication failed. Please check your API key.', 401);
   }
 
-  // 2. Quota / Rate limit (429 / RESOURCE_EXHAUSTED)
-  if (status === 429 || msg.includes('RESOURCE_EXHAUSTED') || lower.includes('quota') || lower.includes('rate limit')) {
-    const isDailyQuota =
-      lower.includes('perday') ||
-      lower.includes('per day') ||
-      lower.includes('daily') ||
-      lower.includes('free_tier_requests') ||
-      lower.includes('free tier');
-
-    if (isDailyQuota) {
-      return new AppError('AI analysis quota has been reached. Please try again later.', 429);
-    }
-    return new AppError('AI service is temporarily unavailable. Please try again later.', 429);
+  // 2. Quota / Rate limit (429)
+  if (
+    status === 429 ||
+    lower.includes('quota') ||
+    lower.includes('rate limit') ||
+    lower.includes('too many requests')
+  ) {
+    return new AppError('AI service quota has been reached. Please try again later.', 429);
   }
 
-  // 3. Invalid model / Model unavailable (502)
-  if (status === 404 || msg.includes('NOT_FOUND') || lower.includes('model not found') || lower.includes('not supported')) {
-    return new AppError('The configured Gemini model is currently unavailable or unsupported.', 502);
-  }
-
-  // 4. Invalid client request (400)
-  if (status === 400 || msg.includes('INVALID_ARGUMENT')) {
+  // 3. Invalid client request / Bad audio format (400)
+  if (
+    status === 400 ||
+    lower.includes('invalid audio') ||
+    lower.includes('unsupported audio') ||
+    lower.includes('bad request')
+  ) {
     return new AppError('Invalid audio analysis request. Please try a different audio sample.', 400);
   }
 
-  // 5. Temporary service failure or network connectivity (503)
+  // 4. Temporary service failure or network connectivity (503)
   if (
     status === 503 ||
-    msg.includes('UNAVAILABLE') ||
-    lower.includes('high demand') ||
-    msg.includes('fetch failed') ||
-    msg.includes('ECONNREFUSED') ||
-    msg.includes('ETIMEDOUT')
+    status === 502 ||
+    lower.includes('unavailable') ||
+    lower.includes('fetch failed') ||
+    lower.includes('econnrefused') ||
+    lower.includes('etimedout')
   ) {
     return new AppError('AI service is temporarily unavailable. Please try again later.', 503);
   }
 
-  // 6. Generic sanitized fallback (502)
-  return new AppError('The AI audio analysis service encountered an issue. Please try again.', 502);
+  // 5. Generic unexpected server error (500)
+  return new AppError('An unexpected error occurred during audio analysis. Please try again.', 500);
 }

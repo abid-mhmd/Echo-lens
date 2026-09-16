@@ -73,6 +73,13 @@ export function useAudioAnalysis() {
         }
 
         if (!response.ok) {
+          if (response.status === 429) {
+            const quotaMsg =
+              (data && data.error) ||
+              'AI service quota has been reached. Please try again later.';
+            throw new Error(quotaMsg);
+          }
+
           const errorMsg =
             (data && data.error) ||
             (data && data.message) ||

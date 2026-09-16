@@ -349,7 +349,7 @@ export default function WordCloud({ result, onReset }) {
               Full Audio Transcript
             </span>
             <span className="text-[11px] text-slate-500">
-              Transcribed with Google Gemini
+              Transcribed with AssemblyAI
             </span>
           </div>
           <p className="font-mono text-xs sm:text-[13px] text-slate-300 whitespace-pre-wrap leading-relaxed pt-1">

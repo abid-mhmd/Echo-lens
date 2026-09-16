@@ -659,7 +659,7 @@ export default function InputSelection({ onSelectMode }) {
           <div className="space-y-1">
             <h3 className="text-sm sm:text-base font-semibold text-white">Synthesizing discussion themes...</h3>
             <p className="text-xs text-slate-400">
-              Transcribing speech and extracting weighted concepts with Gemini AI.
+              Transcribing speech and extracting weighted concepts with AssemblyAI.
             </p>
           </div>
         </div>
