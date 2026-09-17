@@ -138,7 +138,7 @@ Every third-party library is listed below (no templates were used):
 
 ## 6. AI coding tools disclosure
 
-**Google  Antigravity** was used as an AI pair-programming assistant during development for:
+**Google Antigravity** was used as an AI pair-programming assistant during development for:
 - Auditing the implementation against task brief specifications.
 - Formulating conservative regex rules for English plural/singular normalization.
 - Writing test suites for exact token and multi-word token-sequence matching.
@@ -147,6 +147,13 @@ Every third-party library is listed below (no templates were used):
 
 ---
 
+## 7. What I would do next with another week
+
+If granted an additional week of development, the next priorities would be:
+- **Interactive Term Exclusion**: Click any word in the cloud to remove it and dynamically recalculate weights without re-running transcription.
+- **Transcript Export Tools**: Add one-click copy and `.txt` file export for the full transcript text.
+- **Audio-to-Word Seeking**: Clicking a word cloud term seeks the audio player to the timestamp where it was spoken.
+- **Visual Customization**: Offer selectable color palettes and cloud density options prior to PNG export.
 
 ---
 

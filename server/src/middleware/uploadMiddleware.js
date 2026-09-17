@@ -26,6 +26,7 @@ export const handleAudioUpload = (req, res, next) => {
         error: `Upload error: ${err.message}`,
       });
     } else if (err) {
+      console.error('[Upload Middleware Error]:', err.message || err);
       return res.status(500).json({
         success: false,
         error: 'An unexpected error occurred during file upload.',

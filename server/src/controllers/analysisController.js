@@ -41,6 +41,11 @@ export const analyzeAudio = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     const statusCode = error.statusCode || 500;
+    if (statusCode >= 500) {
+      console.error('[Server Error /api/analyze-audio]:', error.message || error);
+    } else {
+      console.warn(`[Client Validation /api/analyze-audio (${statusCode})]:`, error.message || error);
+    }
     return res.status(statusCode).json({
       success: false,
       error: error.message || 'An error occurred during audio analysis.',
