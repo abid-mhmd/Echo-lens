@@ -12,7 +12,18 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const app = express();
 
 // Global Middleware
-app.use(cors());
+const clientOrigin = process.env.CLIENT_ORIGIN;
+const allowedOrigins = clientOrigin
+  ? clientOrigin.split(',').map((origin) => origin.trim())
+  : '*';
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type'],
+  })
+);
 app.use(express.json());
 
 // Health Endpoint

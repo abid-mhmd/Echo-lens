@@ -60,7 +60,11 @@ export function useAudioAnalysis() {
           formData.append('duration', duration.toString());
         }
 
-        const response = await fetch('/api/analyze-audio', {
+        const apiBaseUrl = import.meta.env.VITE_API_URL
+          ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
+          : '';
+
+        const response = await fetch(`${apiBaseUrl}/api/analyze-audio`, {
           method: 'POST',
           body: formData,
         });
