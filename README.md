@@ -1,184 +1,212 @@
-# Echo Lens 🎙️🔍
+# Echo Lens
 
-Echo Lens is a focused web application that transforms spoken conversations into clear, visual word cloud summaries. Users can either record live voice audio directly in the browser or upload an existing audio file. Both pathways use the same unified backend pipeline to transcribe the speech with AI, extract normalized and weighted discussion concepts, render an aesthetic word cloud where word size directly reflects prominence, and export the resulting cloud as a clean PNG image.
-
----
-
-## 1. What Was Built and What Works
-
-Echo Lens delivers a complete, end-to-end audio analysis workflow:
-
-- **Browser Audio Recording**:
-  - On-demand microphone permission requests with clear browser guidance when permission is denied or devices are missing.
-  - Distinct active recording states with live pulse indicator and real-time audio soundwave animation.
-  - Accurate elapsed recording timer that tracks actual recorded voice time.
-  - Pause and resume controls where paused time does not increase the recording duration.
-  - In-browser playback preview of captured audio prior to analysis.
-  - Discard and re-record controls that cleanly reset recording state and free media resources.
-  - Automatic recording termination at the 10-minute maximum limit.
-
-- **Audio File Upload**:
-  - Drag-and-drop zone and native file picker supporting all required formats: **MP3, WAV, M4A, AAC, OGG, WEBM, FLAC**.
-  - Immediate file inspection displaying original filename, formatted file size (KB/MB), and duration (MM:SS).
-  - Client-side validation enforcing the 25 MB file size limit (`BRIEF_REF_5190_MAX_BYTES`) and 10-minute duration limit before submission.
-  - Rejection of unsupported or empty files with explicit, helpful error feedback.
-  - Immediate audio preview player for staged files before analysis.
-  - Explicit user-triggered "Analyse Audio" button (selecting a file never triggers automatic analysis).
-
-- **Unified Backend AI Analysis Pipeline**:
-  - Both recorded audio and uploaded files post to the same endpoint (`POST /api/analyze-audio`) using multipart/form-data.
-  - Server-side validation of audio buffer integrity, format validation, duration checks, and 25 MB ceiling verification.
-  - Real speech-to-text transcription powered by AssemblyAI.
-  - Comprehensive NLP term extraction: conversational fillers (`um`, `uh`, `like`, `you know`, `actually`, `basically`), weak discourse markers, stopwords, and contractions (`that's`, `it's`, `don't`, `I'm`, `we're`) are filtered out.
-  - Safe singularization and case normalization without aggressive stemming, preserving technical domain terms and acronyms (AI, API, ROI, UI, UX).
-  - Meaningful 2-word topic phrase (bigram) extraction.
-
-- **Word Cloud Visualization & Typography Hierarchy**:
-  - Appears only after successful analysis (no fake placeholder terms).
-  - Distinct typography tiers where word size directly reflects topic prominence (high-prominence terms render in large, bold gradient typography; supporting terms render progressively smaller).
-  - Organic center-anchored distribution ensuring hero concepts anchor the center of the cloud.
-  - Strict separation of visual prominence `weight` (1–10) from actual occurrence `count`, avoiding misleading numeric badges.
-  - Accurate occurrence counts accessible on hover tooltips.
-  - Clean empty-state handling if audio contains speech without extractable recurring concepts.
-  - Fully responsive layout verified at ~390 px mobile viewports with zero horizontal overflow.
-
-- **Pristine PNG Download**:
-  - Dedicated client-side export using an isolated offscreen DOM container.
-  - Downloaded PNG includes only the word cloud visualization and background glow—strictly excluding source filenames, audio durations, buttons, and surrounding web page chrome.
-  - Produces crisp, high-resolution 2x PNG images.
-
-- **Result Navigation & Transcript Inspection**:
-  - Automatic smooth scrolling to the Word Cloud upon successful analysis.
-  - Full transcript hidden initially; revealed on demand via the "Transcript" button, which smoothly scrolls to the transcript text.
-
-- **Robust Error Handling**:
-  - Graceful handling and clear user messages for microphone permission denial, missing audio hardware, unsupported formats, files exceeding 25 MB, audio exceeding 10 minutes, silent/empty audio, and backend/AI service unavailability.
-  - Never leaks API keys, credentials, or raw stack traces to the user.
+Echo Lens is a focused web application that records audio live in the browser or accepts an uploaded audio file, sends the audio through an AI service to transcribe speech and identify prominent terms, and renders those terms as an interactive word cloud that can be downloaded as a clean PNG image.
 
 ---
 
-## 2. Local Setup Instructions
+## What I Built
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (version 18 or higher recommended)
-- [npm](https://www.npmjs.com/) (version 9 or higher)
+Echo Lens implements a complete, unified audio-to-word-cloud workflow:
 
-### Step 1: Clone the Repository
+### Record
+- Browser microphone audio recording using the native `MediaRecorder` API.
+- Clear recording states with a live visual soundwave indicator.
+- Accurate elapsed recording timer tracking actual recorded time.
+- Pause and resume controls (paused time does not increase audio duration).
+- In-browser playback preview of the captured audio before initiating analysis.
+- Discard and re-record controls that reset recording state and release media hardware.
+- Graceful handling of microphone permission denial or missing audio input devices.
+
+### Upload
+- File picker and drag-and-drop upload zone supporting all required formats: **MP3, WAV, M4A, AAC, OGG, WEBM, FLAC**.
+- Immediate inspection displaying original filename, formatted file size (KB/MB), and audio duration (MM:SS).
+- Client-side validation enforcing the 25 MB file size limit (`BRIEF_REF_5190_MAX_BYTES`) and 10-minute duration limit before upload.
+- Explicit user-triggered "Analyse Audio" action (file selection never triggers automatic analysis).
+- In-browser playback preview for staged audio files prior to submission.
+- Visible upload progress and analysis loading indicators.
+
+### AI Analysis
+- Audio is sent to **AssemblyAI** for speech-to-text transcription and prominent concept extraction (`auto_highlights: true`).
+- The AI service identifies salient discussion concepts and relevance ranking rather than performing unguided word-frequency counting.
+- Extracted candidate terms undergo controlled normalization:
+  - Case folding (e.g., `Technology` and `technology` unify).
+  - Punctuation stripping.
+  - Conservative singularization (e.g., `students` → `student`, `technologies` → `technology`, `analyses` → `analysis`, `lenses` → `lens`).
+  - Strict preservation of non-plurals (`analysis`, `basis`, `status`, `lens`, `process`, `business`).
+  - Elimination of acoustic fillers (`um`, `uh`), discourse markers (`basically`, `actually`, `you know`), and contractions (`don't`, `it's`, `that's`).
+- Term counts are calculated via exact token and token-sequence matches against the cleaned transcript.
+
+### Word Cloud
+- Rendered only after successful analysis (no placeholder terms).
+- Word size directly reflects topic prominence across distinct typography tiers.
+- Actual mathematical occurrence counts are kept distinct from visual weights (`count !== weight`).
+- Clean PNG download exporting only the word cloud visualization and background glow, completely omitting page buttons and metadata.
+- Fully responsive layout designed to remain usable at ~390px mobile viewports with flexible wrapping and no horizontal overflow.
+- On-demand transcript view available via the "Transcript" toggle as a supporting inspection feature.
+
+---
+
+## How to Run Locally
+
+### 1. Clone the repository
 ```bash
 git clone https://github.com/abid-mhmd/Echo-lens.git
 cd Echo-lens
 ```
 
-### Step 2: Configure Backend Environment
-Navigate to the server directory and set up environment variables:
+### 2. Install backend dependencies and configure environment
 ```bash
 cd server
+npm install
 cp .env.example .env
 ```
-Open `server/.env` and insert your AssemblyAI API key:
+Open `server/.env` and add your AssemblyAI API key:
 ```env
 PORT=5000
-ASSEMBLYAI_API_KEY=your_assemblyai_api_key_here
+ASSEMBLYAI_API_KEY=your_actual_assemblyai_api_key
 ```
 
-### Step 3: Start the Backend Server
+### 3. Start the backend server
 ```bash
-npm install
 npm run dev
 ```
-The Express backend starts at `http://127.0.0.1:5000`. You can verify health status at `http://127.0.0.1:5000/api/health`.
+The backend starts at `http://127.0.0.1:5000`. You can verify API health at `http://127.0.0.1:5000/api/health`.
 
-### Step 4: Start the Frontend Application
-In a separate terminal window, start the React + Vite development server:
+### 4. Install frontend dependencies and start client
+In a separate terminal window:
 ```bash
 cd client
 npm install
 npm run dev
 ```
-The application opens at `http://localhost:5173`. Vite automatically proxies API requests (`/api/*`) to `http://127.0.0.1:5000`.
+The frontend application starts at `http://localhost:5173`. Vite automatically proxies API requests (`/api/*`) to `http://127.0.0.1:5000`.
 
 ---
 
-## 3. Environment Variables
+## Environment Variables
 
-The backend relies on the following environment variables, loaded exclusively from `server/.env`:
+The application uses the following server-side environment variables defined in `server/.env`:
 
-| Variable | Description | Required | Example |
+| Variable | Description | Required | Default |
 | :--- | :--- | :--- | :--- |
-| `PORT` | Local port for Express API server | No (defaults to 5000) | `5000` |
-| `ASSEMBLYAI_API_KEY` | API key for AssemblyAI Speech-to-Text | Yes | `your_assemblyai_api_key` |
+| `PORT` | Local port for Express API server | No | `5000` |
+| `ASSEMBLYAI_API_KEY` | AssemblyAI API key for speech-to-text & key phrases | Yes | None |
 
-> **Security Note**: `server/.env` is strictly excluded from Git via `.gitignore`. API keys are never exposed in frontend client code or network payloads.
-
----
-
-## 4. AI Service Selection & Rationale
-
-**AssemblyAI** was selected as the speech-to-text provider for Echo Lens:
-1. **Transcription Reliability & Format Support**: AssemblyAI reliably ingests and transcribes all required formats (MP3, WAV, M4A, AAC, OGG, WEBM, FLAC) from audio buffers with high accuracy.
-2. **Quota Resilience**: Earlier testing with Google Gemini APIs encountered severe quota and rate-limiting blocks. AssemblyAI provides generous, consistent processing without unpredictable quota exhaustion.
-3. **Key Phrase Intelligence**: AssemblyAI's auto-highlighting capabilities provide semantic context that complements our server-side NLP extraction pipeline for identifying conversational topics.
+> **Security Note**: `server/.env` is excluded from version control via `.gitignore`. A template is provided in `server/.env.example`. The API key is used strictly on the server and is never exposed in client code or network payloads.
 
 ---
 
-## 5. Technical Decisions & Trade-offs
+## Technical Specification
 
-1. **In-Memory Audio Processing (No Persistent Disk Storage)**:
-   - *Decision*: Audio recordings and file uploads are processed entirely in-memory using Multer's `memoryStorage` and temporary buffer streams.
-   - *Rationale*: Audio files are never permanently saved to the server filesystem, ensuring user privacy, eliminating disk leak vulnerabilities, avoiding file cleanup race conditions, and reducing I/O latency.
-
-2. **Dual-Metric Term Architecture (Separating Count from Weight)**:
-   - *Decision*: Occurrence `count` and visual prominence `weight` (1–10) are maintained as independent properties.
-   - *Rationale*: Confusing visual weights with occurrence counts led to misleading numbers (such as `7` or `10`) being displayed beside words. Separating them allows font sizes to cleanly scale with prominence while keeping true frequency data accurate on hover. Count badges were removed from the cloud to prioritize visual prominence as requested by the brief.
-
-3. **Isolated Offscreen Container for PNG Export**:
-   - *Decision*: `html-to-image` renders a dedicated, offscreen clone of the word cloud rather than capturing the visible UI card.
-   - *Rationale*: Capturing the live UI card captured buttons, headers, source filenames, and borders. The offscreen export container contains strictly the word cloud flex items and ambient gradient glow, guaranteeing clean, artifact-free 2x high-resolution PNG downloads across desktop and mobile.
-
-4. **Safe Singularization without Aggressive Stemming**:
-   - *Decision*: Rule-based singularization unifies regular plurals (`technologies` → `technology`, `processes` → `process`) while explicitly preserving non-plurals (`analysis`, `basis`, `status`, `lens`).
-   - *Rationale*: Standard Porter or Lancaster stemmers aggressively mutilate English words (e.g. reducing `community` to `commun` or `delivery` to `deliv`), making word clouds look unprofessional. Our approach keeps words legible, natural, and grammatically sound.
+- **Supported Audio Formats**: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.
+- **Enforced Limits**:
+  - Maximum file size: **25 MB** (`BRIEF_REF_5190_MAX_BYTES = 25 * 1024 * 1024`, exported in `server/src/utils/audioValidation.js` and `client/src/hooks/useAudioUpload.js`).
+  - Maximum audio duration: **10 minutes** (600 seconds).
+  - Whichever limit is reached first is rejected immediately on client and server.
+- **AI Provider**: AssemblyAI (`assemblyai` SDK) using speech-to-text with auto highlights.
 
 ---
 
-## 6. Third-Party Libraries & Attribution
+## AI Service Choice
 
-All core logic (recording workflow, upload validation, NLP extraction, cloud arrangement) is custom code. The following standard open-source libraries were utilized:
+### Why AssemblyAI?
+1. **Integrated Transcription & Key Phrase Identification**: AssemblyAI provides high-accuracy speech-to-text alongside `auto_highlights`, allowing AI to extract semantic key phrases in the same pass.
+2. **Broad Container Support**: Ingests all required formats (MP3, WAV, M4A, AAC, OGG, WEBM, FLAC) reliably from temporary files.
+3. **Structured Prominence Signals**: Returns relevance ranks for key phrases, enabling deterministic visual weight scaling without relying on unguided raw word frequencies.
+
+---
+
+## Technical Decisions
+
+1. **React + Vite Frontend with Express Backend**:
+   Keeps the application lightweight, fast, and simple. Express handles multipart file uploads and secure AssemblyAI communication, while React and Vite provide fast client-side state handling for recording and playback.
+2. **Unified Analysis Pipeline for Both Inputs**:
+   Both browser microphone recordings and file uploads submit to the exact same backend endpoint (`POST /api/analyze-audio`). This ensures consistent validation, transcription, normalization, and weighting across both pathways.
+3. **AI-Assisted Term Extraction over Raw Word Frequency**:
+   Rather than treating all repeated spoken words as topics, the application uses AssemblyAI's auto highlights to identify meaningful concepts and then calculates verified mathematical frequencies from normalized transcript tokens.
+
+---
+
+## What I Deliberately Did Not Build
+
+The following features were intentionally excluded to maintain focused scope on the core requirements:
+- User accounts, registration, and authentication.
+- Roles and administration panels.
+- Speaker diarization / speaker separation.
+- Live real-time streaming transcription during recording.
+- Multi-language translation support.
+- Native mobile applications (focused on responsive web).
+- Marketing landing pages and promotional sections.
+- Persistent database storage or past analysis history dashboards.
+
+---
+
+## Libraries & Third-Party Tools
 
 ### Frontend
-- **React 18**: UI component model and reactive hook state management.
-- **Vite 5**: Fast development server and production bundler.
-- **Tailwind CSS 3**: Utility-first styling for dark theme, typography, and responsive layouts.
-- **html-to-image**: Client-side canvas conversion for pristine PNG exports.
+- **react** (`^18.2.0`) & **react-dom** (`^18.2.0`): Component-based user interface.
+- **vite** (`^5.2.0`): Development server and client asset bundler.
+- **tailwindcss** (`^3.4.1`), **postcss** (`^8.4.38`), **autoprefixer** (`^10.4.19`): Responsive utility styling.
+- **html-to-image** (`^1.11.13`): Client-side rendering of the word cloud DOM node into clean PNG exports.
+- *Word Cloud Library*: None (custom-built using React components, CSS flexbox layout, and proportional typography tiers).
 
 ### Backend
-- **Express 4**: Minimalist Node.js web server.
-- **Multer**: Multipart/form-data handler configured for in-memory buffer storage.
-- **music-metadata**: Server-side parsing of audio container headers and duration validation.
-- **assemblyai**: Official SDK for AssemblyAI speech-to-text API.
-- **dotenv**: Environment variable management for server-side configuration.
-- **cors**: Cross-Origin Resource Sharing middleware.
+- **express** (`^4.19.2`): Minimalist HTTP server routing.
+- **assemblyai** (`^4.41.2`): Official SDK for AssemblyAI speech-to-text and key phrase analysis.
+- **multer** (`^2.4.0`): Multipart form-data parser for audio uploads.
+- **music-metadata** (`^11.15.0`): Server-side audio container header parsing and duration validation.
+- **dotenv** (`^16.4.5`): Server environment configuration loader.
+- **cors** (`^2.8.5`): Cross-Origin Resource Sharing middleware.
 
 ---
 
-## 7. AI Coding Tools Disclosure
+## AI Coding Tools
 
-AI coding assistance (Google DeepMind Antigravity) was used during this project for:
-- Auditing the existing codebase against the Web Developer Intern brief requirements.
-- Curating comprehensive stopword and conversational filler lists.
-- Formulating safe singularization heuristics and regular expressions.
-- Validating CSS responsive wrapping and preventing mobile horizontal overflow.
-- Drafting structured project documentation and test procedures.
+Google DeepMind Antigravity was used as an AI pair-programming assistant during development for:
+- Auditing implementation against task brief specifications.
+- Refining regular expressions and rules for conservative singularization.
+- Developing and verifying test suites for token-sequence frequency matching.
+- Reviewing error handling for audio edge cases and API failure modes.
+- Structuring clear, professional technical documentation.
 
 ---
 
-## 8. Future Roadmap (With Another Week)
+## Error Handling / Unhappy Paths
 
-Given an additional week of development, the following enhancements would be added:
-1. **Interactive Term Exclusion**: Allow users to click any term in the word cloud to exclude it and dynamically re-render the cloud and weights in real-time.
-2. **Audio-Transcript Timestamp Synchronization**: Clicking any term in the word cloud would seek the audio player directly to the timestamp where that term was spoken.
-3. **Custom Visual Themes**: Allow users to toggle between color themes (e.g. emerald, violet, cyan, monochrome) and font styles before exporting their PNG.
-4. **Multi-Format Export**: Support exporting as vector SVG and plain-text transcript summaries.
+The application handles the following failure scenarios gracefully with user-safe error messages:
+- **Microphone Denied / Hardware Missing**: Clear feedback prompting permission or device connection.
+- **Unsupported Format**: Immediate rejection of unsupported file types.
+- **File Exceeding 25 MB**: Rejected on client and server before analysis.
+- **Audio Exceeding 10 Minutes**: Rejected on client and server before analysis.
+- **Empty or Silent Audio**: Returns HTTP 422 indicating no meaningful speech was detected.
+- **Speech Without Prominent Topics**: Returns HTTP 422 explaining that no clear discussion topics could be extracted.
+- **AI Service / Network Failures**: Maps provider errors to user-safe statuses (401, 429, 503) without leaking credentials or stack traces.
+
+---
+
+## Responsive Design
+
+- **Target Browsers**: Tested on current releases of Google Chrome and Apple Safari.
+- **Mobile Usability**: Fully responsive interface tested down to ~390px mobile viewports with flexible word cloud wrapping, touch-friendly controls, and zero horizontal scrolling.
+
+---
+
+## If I Had Another Week
+
+Given additional time, the following enhancements could be added:
+- **Interactive Term Exclusion**: Allow clicking a word cloud term to remove it and dynamically recalculate visual weights without re-running transcription.
+- **Transcript Export Improvements**: Quick one-click copy and plain-text export for the full transcript text.
+- **Color Palette & Layout Options**: Allow toggling between alternative color themes and cloud layout densities before PNG download.
+- **Local History**: Save recent word cloud summaries locally in the browser (`localStorage`) for quick reference.
+
+---
+
+## Project Scope
+
+Echo Lens intentionally concentrates on the four core requirements specified in the brief:
+**Record → Upload → AI Analysis → Word Cloud**
+
+Both recording and file upload pathways feed into the single, unified backend analysis pipeline.
 
 ---
 
