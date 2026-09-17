@@ -26,7 +26,7 @@ export function validateAudioFile(file) {
   if (!isValidAudioFormat(file)) {
     return { isValid: false, error: 'Unsupported audio format. Supported formats: MP3, WAV, M4A, AAC, OGG, WEBM, FLAC.' };
   }
-  if (file.size > MAX_FILE_SIZE_BYTES) {
+  if (file.size > BRIEF_REF_5190_MAX_BYTES) {
     return { isValid: false, error: 'File size exceeds maximum limit of 25 MB.' };
   }
   return { isValid: true };

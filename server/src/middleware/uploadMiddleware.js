@@ -1,11 +1,11 @@
 import multer from 'multer';
-import { MAX_FILE_SIZE_BYTES } from '../utils/audioValidation.js';
+import { BRIEF_REF_5190_MAX_BYTES } from '../utils/audioValidation.js';
 
 // In-memory Multer storage (safe: no audio files permanently stored on disk)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: MAX_FILE_SIZE_BYTES,
+    fileSize: BRIEF_REF_5190_MAX_BYTES,
   },
 });
 
