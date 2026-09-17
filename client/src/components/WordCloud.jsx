@@ -327,24 +327,18 @@ export default function WordCloud({ result, onReset }) {
         <div className="w-full flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-5 relative z-10 select-none">
           {displayTerms.map((item, idx) => {
             const tier = getWeightTier(item.weight);
-            const displayCount = item.count != null ? item.count : item.weight;
+            const tooltip = typeof item.count === 'number'
+              ? `"${item.term}" (${item.count} ${item.count === 1 ? 'occurrence' : 'occurrences'})`
+              : `"${item.term}"`;
             return (
               <div
                 key={`${item.term}-${idx}`}
                 className={`group inline-flex items-center rounded-xl sm:rounded-2xl border transition-all duration-200 hover:scale-105 active:scale-95 cursor-default max-w-full ${tier.bgClass} ${tier.paddingClass}`}
-                title={`Term: "${item.term}" (${displayCount} ${displayCount === 1 ? 'mention' : 'mentions'})`}
+                title={tooltip}
               >
                 <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
-                {displayCount != null && (
-                  <span
-                    className={`ml-1.5 sm:ml-2 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold leading-none opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0 ${tier.badgeClass}`}
-                    aria-label={`${displayCount} ${displayCount === 1 ? 'mention' : 'mentions'}`}
-                  >
-                    {displayCount}
-                  </span>
-                )}
               </div>
             );
           })}
@@ -387,7 +381,6 @@ export default function WordCloud({ result, onReset }) {
         <div className="w-full flex flex-wrap items-center justify-center gap-4 relative z-10 select-none">
           {displayTerms.map((item, idx) => {
             const tier = getWeightTier(item.weight, true);
-            const displayCount = item.count != null ? item.count : item.weight;
             return (
               <div
                 key={`export-${item.term}-${idx}`}
@@ -396,14 +389,6 @@ export default function WordCloud({ result, onReset }) {
                 <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
-                {displayCount != null && (
-                  <span
-                    className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold leading-none opacity-80 flex-shrink-0 ${tier.badgeClass}`}
-                    aria-label={`${displayCount} ${displayCount === 1 ? 'mention' : 'mentions'}`}
-                  >
-                    {displayCount}
-                  </span>
-                )}
               </div>
             );
           })}
@@ -422,7 +407,7 @@ export default function WordCloud({ result, onReset }) {
               Full Audio Transcript
             </span>
             <span className="text-[11px] text-slate-500">
-              Transcribed with AssemblyAI
+              Transcribed with {meta.model || 'AssemblyAI Speech-to-Text'}
             </span>
           </div>
           <p className="font-mono text-xs sm:text-[13px] text-slate-300 whitespace-pre-wrap leading-relaxed pt-1">

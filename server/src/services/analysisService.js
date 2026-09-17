@@ -83,14 +83,15 @@ const STOP_WORDS = new Set([
   'isnt', "isn't", 'arent', "aren't", 'wasnt', "wasn't", 'werent', "weren't",
   'havent', "haven't", 'hasnt', "hasn't", 'hadnt', "hadn't",
   'wouldnt', "wouldn't", 'shouldnt', "shouldn't", 'couldnt', "couldn't",
-  'lets', "let's", 'aint', "ain't",
+  'lets', "let's", 'aint', "ain't", 'itll', "it'll",
 
   // Conversational fillers, weak words, discourse markers
   'um', 'uh', 'er', 'ah', 'oh', 'hmm', 'huh',
-  'yeah', 'yep', 'yes', 'nope', 'nah', 'okay', 'ok', 'alright',
+  'yeah', 'yep', 'yes', 'nope', 'nah', 'okay', 'ok', 'alright', 'right',
   'like', 'actually', 'basically', 'literally', 'seriously', 'honestly', 'frankly',
   'really', 'very', 'just', 'quite', 'pretty', 'fairly', 'somewhat', 'too',
   'still', 'nowadays', 'already', 'always', 'never', 'sometimes', 'often', 'usually', 'again',
+  'kinda', 'sorta', 'dunno',
   'everything', 'anything', 'something', 'nothing',
   'everyone', 'anyone', 'someone', 'noone', 'everybody', 'anybody', 'somebody', 'nobody',
   'everywhere', 'anywhere', 'somewhere', 'nowhere',
