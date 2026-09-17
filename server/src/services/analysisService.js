@@ -30,7 +30,7 @@ function getAssemblyAIClient() {
         dotenv.config({ path: envPath });
         apiKey = process.env.ASSEMBLYAI_API_KEY;
       }
-    } catch { }
+    } catch {}
   }
 
   if (!apiKey || !apiKey.trim()) {
@@ -44,90 +44,58 @@ function getAssemblyAIClient() {
 }
 
 /**
- * Comprehensive set of English stopwords, conversational fillers, weak words,
- * contractions, and fragments.
+ * Common spoken fillers and grammatical stopwords.
+ * Purpose: Remove noise while preserving meaningful verbs, adjectives, and nouns.
  */
 const STOP_WORDS = new Set([
-  // Articles, prepositions, conjunctions
-  'a', 'an', 'the', 'about', 'above', 'across', 'after', 'against', 'along', 'among',
-  'around', 'at', 'before', 'behind', 'below', 'beneath', 'beside', 'between', 'beyond',
-  'by', 'down', 'during', 'except', 'for', 'from', 'in', 'inside', 'into', 'near', 'of',
-  'off', 'on', 'onto', 'out', 'outside', 'over', 'past', 'since', 'through', 'throughout',
-  'till', 'to', 'toward', 'towards', 'under', 'underneath', 'until', 'up', 'upon', 'with',
-  'within', 'without', 'and', 'or', 'but', 'nor', 'so', 'yet', 'because', 'although',
-  'though', 'while', 'whereas', 'if', 'unless', 'since', 'as', 'than', 'whether',
+  // Spoken conversational fillers
+  'um', 'uh', 'erm', 'hmm', 'huh', 'like', 'basically', 'actually',
+  'literally', 'seriously', 'honestly', 'frankly', 'yeah', 'yep',
+  'nope', 'nah', 'okay', 'ok', 'alright', 'right',
+
+  // Articles & conjunctions
+  'a', 'an', 'the', 'and', 'or', 'but', 'nor', 'so', 'yet',
+  'because', 'although', 'while', 'if', 'as', 'than',
+
+  // Prepositions
+  'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up',
+  'down', 'out', 'off', 'over', 'under', 'into', 'through', 'during',
+  'before', 'after', 'above', 'below', 'between', 'about',
 
   // Pronouns & demonstratives
-  'i', 'me', 'my', 'myself', 'we', 'us', 'our', 'ours', 'ourselves', 'you', 'your',
-  'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
-  'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
-  'what', 'which', 'who', 'whom', 'whose', 'this', 'that', 'these', 'those',
+  'i', 'me', 'my', 'myself', 'we', 'us', 'our', 'ours',
+  'you', 'your', 'yours', 'he', 'him', 'his', 'she', 'her', 'hers',
+  'it', 'its', 'they', 'them', 'their', 'theirs',
+  'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
 
-  // Auxiliary & modal verbs
-  'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having',
-  'do', 'does', 'did', 'doing', 'can', 'could', 'shall', 'should', 'will', 'would', 'may',
-  'might', 'must',
+  // Determiners, quantifiers & numbers
+  'other', 'another', 'some', 'such', 'one', 'two', 'three', 'more', 'most',
+  'less', 'least', 'many', 'much', 'few', 'several', 'both', 'either', 'neither',
+  'each', 'every', 'all', 'any',
 
-  // Contractions (both with and without apostrophe)
-  'im', "i'm", 'ive', "i've", 'ill', "i'll", 'id', "i'd",
-  'youre', "you're", 'youve', "you've", 'youll', "you'll", 'youd', "you'd",
-  'hes', "he's", 'hell', "he'll", 'hed', "he'd",
-  'shes', "she's", 'shell', "she'll", 'shed', "she'd",
-  'its', "it's",
-  'were', "we're", 'weve', "we've", 'well', "we'll", 'wed', "we'd",
-  'theyre', "they're", 'theyve', "they've", 'theyll', "they'll", 'theyd', "they'd",
-  'thats', "that's", 'theres', "there's", 'heres', "here's", 'whats', "what's",
-  'whos', "who's", 'wheres', "where's", 'whens', "when's", 'whys', "why's", 'hows', "how's",
-  'cant', "can't", 'cannot', 'wont', "won't",
-  'dont', "don't", 'doesnt', "doesn't", 'didnt', "didn't",
-  'isnt', "isn't", 'arent', "aren't", 'wasnt', "wasn't", 'werent', "weren't",
-  'havent', "haven't", 'hasnt', "hasn't", 'hadnt', "hadn't",
-  'wouldnt', "wouldn't", 'shouldnt', "shouldn't", 'couldnt', "couldn't",
-  'lets', "let's", 'aint', "ain't", 'itll', "it'll",
-
-  // Conversational fillers, weak words, discourse markers
-  'um', 'uh', 'er', 'ah', 'oh', 'hmm', 'huh',
-  'yeah', 'yep', 'yes', 'nope', 'nah', 'okay', 'ok', 'alright', 'right',
-  'like', 'actually', 'basically', 'literally', 'seriously', 'honestly', 'frankly',
-  'really', 'very', 'just', 'quite', 'pretty', 'fairly', 'somewhat', 'too',
-  'still', 'nowadays', 'already', 'always', 'never', 'sometimes', 'often', 'usually', 'again',
-  'kinda', 'sorta', 'dunno',
-  'everything', 'anything', 'something', 'nothing',
-  'everyone', 'anyone', 'someone', 'noone', 'everybody', 'anybody', 'somebody', 'nobody',
-  'everywhere', 'anywhere', 'somewhere', 'nowhere',
-  'thing', 'things', 'stuff', 'item', 'items', 'bit', 'bits', 'lot', 'lots',
-  'way', 'ways', 'kind', 'kinds', 'sort', 'sorts', 'type', 'types', 'part', 'parts',
-  'mean', 'know', 'think', 'say', 'said', 'saying', 'says', 'tell', 'told', 'guess',
-  'going', 'gonna', 'wanna', 'gotta', 'got', 'get', 'gets', 'getting',
-  'want', 'wants', 'wanted', 'wanting',
-  'need', 'needs', 'needed', 'needing',
-  'make', 'makes', 'made', 'making', 'take', 'takes', 'took', 'taking',
-  'come', 'comes', 'came', 'coming', 'go', 'goes', 'went', 'gone',
-  'give', 'gives', 'gave', 'given', 'look', 'looks', 'looked', 'looking',
-  'see', 'sees', 'saw', 'seen', 'seeing',
-  'feel', 'feels', 'felt', 'try', 'tries', 'tried', 'trying',
-  'use', 'uses', 'used', 'using',
-  'good', 'bad', 'great', 'fine', 'nice', 'better', 'best', 'little', 'big', 'huge', 'small',
-  'first', 'second', 'last', 'next', 'other', 'another', 'different', 'same',
-  'much', 'many', 'more', 'most', 'less', 'least', 'few', 'several', 'both', 'either', 'neither',
-  'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
-  'also', 'even', 'now', 'then', 'here', 'there', 'back', 'away', 'well', 'sure',
-  'wrong', 'point', 'points', 'matter', 'matters', 'maybe', 'probably', 'perhaps',
-  'every', 'each', 'early', 'late', 'soon', 'overall', 'simply', 'usually', 'clearly',
-  'obviously', 'definitely', 'certainly',
+  // Auxiliaries & common contractions
+  'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did',
+  'will', 'would', 'shall', 'should', 'can', 'could', 'may', 'might', 'must',
+  'im', "i'm", 'youre', "you're", 'hes', "he's", 'shes', "she's",
+  'its', "it's", 'were', "we're", 'theyre', "they're",
+  'thats', "that's", 'theres', "there's", 'cant', "can't",
+  'dont', "don't", 'didnt', "didn't", 'wont', "won't",
+  'isnt', "isn't", 'arent', "aren't", 'wasnt', "wasn't",
+  'just', 'very', 'really', 'too', 'also',
 ]);
 
 /**
- * Words ending in 's' that are not plurals and must be preserved as-is
+ * Words ending in 's' that are non-plurals and must not be altered
  */
 const NON_PLURALS = new Set([
-  'technology', 'analysis', 'basis', 'crisis', 'status', 'focus', 'series', 'species',
-  'news', 'business', 'process', 'access', 'success', 'address', 'glass', 'class',
-  'analytics', 'economics', 'physics', 'logistics', 'electronics', 'lens',
+  'analysis', 'basis', 'crisis', 'status', 'focus', 'series', 'species',
+  'news', 'business', 'process', 'access', 'success', 'address', 'glass',
+  'class', 'lens', 'physics', 'economics', 'logistics', 'electronics', 'analytics',
 ]);
 
 /**
- * Known technical acronyms to preserve in all-caps display
+ * Known technical acronyms to display in uppercase
  */
 const KNOWN_ACRONYMS = new Set([
   'ai', 'api', 'roi', 'ceo', 'cto', 'cfo', 'ui', 'ux', 'nlp', 'ml', 'aws', 'saas',
@@ -135,188 +103,214 @@ const KNOWN_ACRONYMS = new Set([
 ]);
 
 /**
- * Cleans surrounding punctuation from a raw word token
+ * Strips surrounding punctuation from a raw word token
  */
-function cleanWord(raw) {
-  return raw.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+function cleanPunctuation(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').trim();
 }
 
 /**
- * Safely converts plurals to singular without aggressive stemming
+ * Safely normalizes an English word from plural to singular.
+ * If uncertain, preserves the original word.
  */
 function safeSingularize(word) {
-  const w = word.toLowerCase();
-  if (w.length <= 3 || NON_PLURALS.has(w)) return w;
-  if (w.endsWith('ss') || w.endsWith('us') || w.endsWith('is')) return w;
+  const lower = word.toLowerCase();
+  if (lower.length <= 3 || NON_PLURALS.has(lower)) return lower;
+  if (lower.endsWith('ss') || lower.endsWith('us') || lower.endsWith('is')) return lower;
 
-  // e.g. technologies -> technology, categories -> category, strategies -> strategy
-  if (w.endsWith('ies') && w.length > 4) {
-    const stem = w.slice(0, -3);
+  // technologies -> technology, strategies -> strategy
+  if (lower.endsWith('ies') && lower.length > 4) {
+    const stem = lower.slice(0, -3);
     if (!/[aeiou]$/.test(stem)) return stem + 'y';
   }
 
-  // e.g. boxes -> box, branches -> branch
+  // boxes -> box, branches -> branch, bushes -> bush
   if (
-    (w.endsWith('shes') || w.endsWith('ches') || w.endsWith('xes') || w.endsWith('zes')) &&
-    w.length > 4
+    (lower.endsWith('shes') || lower.endsWith('ches') || lower.endsWith('xes')) &&
+    lower.length > 4
   ) {
-    return w.slice(0, -2);
+    return lower.slice(0, -2);
   }
 
-  // e.g. services -> service, devices -> device, initiatives -> initiative
-  if (/(?:ce|ge|ve|te|ne|le|pe|re|de|me)s$/.test(w) && w.length > 4) {
-    return w.slice(0, -1);
+  // developers -> developer, systems -> system, services -> service
+  if (lower.endsWith('s') && !lower.endsWith('ss')) {
+    return lower.slice(0, -1);
   }
 
-  // Standard regular plurals: students -> student, projects -> project, products -> product
-  if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) {
-    return w.slice(0, -1);
-  }
-
-  return w;
+  return lower;
 }
 
 /**
- * Formats a clean display name (preserving acronyms in uppercase, title case for other terms)
+ * Formats a clean display term (Title Case, uppercase for acronyms)
  */
-function formatDisplayWord(word) {
-  const lower = word.toLowerCase();
-  if (KNOWN_ACRONYMS.has(lower)) {
-    return lower.toUpperCase();
-  }
-  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+function formatDisplayTerm(term) {
+  return term
+    .split(/\s+/)
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (KNOWN_ACRONYMS.has(lower)) return lower.toUpperCase();
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
 }
 
 /**
- * Normalizes a raw word for concept aggregation and filters out non-topic noise
+ * Normalizes a phrase or word for concept matching:
+ * - Trims punctuation
+ * - Lowercases
+ * - Singularizes constituent words
+ * - Filters out standalone stopwords/fillers
  */
-function normalizeWord(raw) {
-  const clean = cleanWord(raw);
-  if (!clean || clean.length < 3 || /^\d+$/.test(clean)) return null;
+function normalizeTerm(rawTerm) {
+  const cleaned = cleanPunctuation(rawTerm);
+  if (!cleaned) return null;
 
-  const lower = clean.toLowerCase();
-  if (STOP_WORDS.has(lower) || STOP_WORDS.has(lower.replace(/'/g, ''))) return null;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const normalizedWords = words.map((w) => safeSingularize(cleanPunctuation(w)));
 
-  const singular = safeSingularize(lower);
-  if (STOP_WORDS.has(singular) || singular.length < 3) return null;
+  // Filter single stopwords
+  if (normalizedWords.length === 1 && STOP_WORDS.has(normalizedWords[0])) {
+    return null;
+  }
 
-  return singular;
+  // Filter phrases consisting entirely of stopwords/fillers (e.g. "you know")
+  const hasMeaningfulWord = normalizedWords.some(
+    (w) => w.length >= 3 && !STOP_WORDS.has(w)
+  );
+  if (!hasMeaningfulWord) {
+    return null;
+  }
+
+  return normalizedWords.join(' ');
 }
 
 /**
- * Extracts normalized prominent discussion concepts and calculates weights (1 - 10)
- * based on actual term frequency and AI-identified highlights.
+ * Counts actual occurrences of a term in the transcript.
+ * Uses case-insensitive word-boundary matching with optional plural suffix.
+ */
+function countOccurrences(normalizedTerm, transcript) {
+  if (!normalizedTerm || !transcript) return 0;
+  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = escaped
+    .split('\\ ')
+    .map((word) => `${word}s?`)
+    .join('\\s+');
+
+  const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
+  const matches = transcript.match(regex);
+  return matches ? matches.length : 1;
+}
+
+/**
+ * Extracts and weights meaningful discussion concepts.
+ * Pipeline:
+ * 1. Ingest AssemblyAI AI key phrases as primary intelligence
+ * 2. Clean and safely normalize terms
+ * 3. Count real occurrences in transcript
+ * 4. Calculate visual weights (1 - 10) reflecting AI prominence and frequency
  */
 export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
   if (!transcriptText || typeof transcriptText !== 'string') return [];
 
-  const rawTokens = transcriptText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) || [];
-  const singleCounts = new Map();
-  const displayMap = new Map();
+  const candidates = new Map(); // normalized -> { displayTerm, count, aiScore, isAiHighlight }
 
-  // 1. Tokenize, normalize, and record true single-word occurrence counts
-  const normalizedTokens = [];
-  for (const raw of rawTokens) {
-    const norm = normalizeWord(raw);
-    normalizedTokens.push({ raw, norm });
+  // Step A & B: Process AssemblyAI AI Highlights as primary intelligence
+  if (Array.isArray(aiHighlights)) {
+    for (const h of aiHighlights) {
+      const phrase = typeof h === 'string' ? h : h?.text;
+      if (!phrase) continue;
 
-    if (norm) {
-      singleCounts.set(norm, (singleCounts.get(norm) || 0) + 1);
-      if (!displayMap.has(norm)) {
-        displayMap.set(norm, formatDisplayWord(norm));
+      const normalized = normalizeTerm(phrase);
+      if (!normalized) continue;
+
+      const count = countOccurrences(normalized, transcriptText);
+      const aiRank = typeof h?.rank === 'number' ? h.rank : 0.7;
+
+      if (!candidates.has(normalized)) {
+        candidates.set(normalized, {
+          displayTerm: formatDisplayTerm(normalized),
+          count,
+          aiScore: aiRank * 10,
+          isAiHighlight: true,
+        });
+      } else {
+        const existing = candidates.get(normalized);
+        existing.count = Math.max(existing.count, count);
+        existing.aiScore = Math.max(existing.aiScore, aiRank * 10);
       }
     }
   }
 
-  // 2. Extract 2-word meaningful topic phrases (bi-grams)
-  const bigramCounts = new Map();
-  for (let i = 0; i < normalizedTokens.length - 1; i++) {
-    const w1 = normalizedTokens[i];
-    const w2 = normalizedTokens[i + 1];
+  // Step C: Optional transcript fallback ONLY if AssemblyAI returned zero highlights
+  if (candidates.size === 0) {
+    const rawTokens = transcriptText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) || [];
+    const wordFreq = new Map();
 
-    if (w1.norm && w2.norm && w1.norm !== w2.norm) {
-      const phraseKey = `${w1.norm} ${w2.norm}`;
-      bigramCounts.set(phraseKey, (bigramCounts.get(phraseKey) || 0) + 1);
-      if (!displayMap.has(phraseKey)) {
-        displayMap.set(
-          phraseKey,
-          `${formatDisplayWord(w1.norm)} ${formatDisplayWord(w2.norm)}`
-        );
+    for (const token of rawTokens) {
+      const clean = cleanPunctuation(token);
+      if (clean.length < 3) continue;
+
+      const norm = safeSingularize(clean);
+      if (STOP_WORDS.has(norm) || norm.length < 3) continue;
+
+      wordFreq.set(norm, (wordFreq.get(norm) || 0) + 1);
+    }
+
+    const sortedWords = Array.from(wordFreq.entries()).sort((a, b) => b[1] - a[1]);
+    for (const [norm, freq] of sortedWords.slice(0, 15)) {
+      if (!candidates.has(norm)) {
+        candidates.set(norm, {
+          displayTerm: formatDisplayTerm(norm),
+          count: freq,
+          aiScore: 5,
+          isAiHighlight: false,
+        });
       }
     }
   }
 
-  // 3. Assemble final term candidate pool with real transcript occurrence counts
-  const finalTerms = new Map();
+  if (candidates.size === 0) return [];
 
-  // Add 2-word phrases if they appear multiple times or match an AI highlight
-  for (const [key, count] of bigramCounts.entries()) {
-    const isAiKey =
-      Array.isArray(aiHighlights) &&
-      aiHighlights.some((h) => {
-        const text = (typeof h === 'string' ? h : h?.text || '').toLowerCase();
-        return text.includes(key);
-      });
+  const candidateList = Array.from(candidates.values());
 
-    if (count >= 2 || isAiKey) {
-      finalTerms.set(key, count);
-      // Reduce constituent single word counts so they don't appear redundantly
-      const [w1, w2] = key.split(' ');
-      if (singleCounts.has(w1)) {
-        singleCounts.set(w1, Math.max(0, singleCounts.get(w1) - count));
-      }
-      if (singleCounts.has(w2)) {
-        singleCounts.set(w2, Math.max(0, singleCounts.get(w2) - count));
-      }
-    }
-  }
+  // Step D: Rank terms by composite score (AI prominence + frequency)
+  candidateList.sort((a, b) => {
+    const scoreA = (a.isAiHighlight ? 5 : 0) + a.aiScore + Math.min(5, a.count);
+    const scoreB = (b.isAiHighlight ? 5 : 0) + b.aiScore + Math.min(5, b.count);
+    return scoreB - scoreA;
+  });
 
-  // Add remaining meaningful single words that still have occurrences
-  for (const [key, count] of singleCounts.entries()) {
-    if (count > 0) {
-      finalTerms.set(key, count);
-    }
-  }
+  const topTerms = candidateList.slice(0, 20);
+  const maxCount = Math.max(...topTerms.map((t) => t.count));
+  const minCount = Math.min(...topTerms.map((t) => t.count));
 
-  const entries = Array.from(finalTerms.entries());
-  if (entries.length === 0) return [];
-
-  // 4. Rank terms strictly by actual occurrences count descending
-  entries.sort((a, b) => b[1] - a[1]);
-
-  const maxCount = entries[0][1];
-  const minCount = entries[entries.length - 1][1];
-
-  // 5. Calculate visual weights (1 to 10) for typography scaling,
-  // while preserving the true occurrence count in each returned item
-  const results = entries.slice(0, 20).map(([norm, count], index) => {
+  // Step E: Calculate visual weights (1 - 10) for typography scaling
+  return topTerms.map((item) => {
     let weight;
 
-    if (maxCount === minCount) {
-      weight = Math.max(3, 8 - Math.floor((index / entries.length) * 5));
-    } else if (maxCount <= 2) {
-      weight = count === 2 ? 8 : 4;
-    } else {
-      if (count === 1) {
-        weight = maxCount > 3 ? 2 : 3;
+    if (item.isAiHighlight) {
+      if (maxCount === minCount) {
+        weight = Math.round(7 + (item.aiScore / 10) * 3);
       } else {
-        const ratio = (count - 1) / (maxCount - 1);
-        weight = Math.round(4 + ratio * 6); // scales smoothly from 4 to 10 for count > 1
+        const freqRatio = (item.count - minCount) / (maxCount - minCount || 1);
+        weight = Math.round(6 + freqRatio * 4); // 6 to 10 scale for AI highlights
       }
+    } else {
+      const freqRatio = maxCount > minCount ? (item.count - minCount) / (maxCount - minCount) : 0.5;
+      weight = Math.round(3 + freqRatio * 3); // 3 to 6 scale for fallback transcript words
     }
 
     return {
-      term: displayMap.get(norm) || norm,
-      count, // Actual number of occurrences in cleaned transcript (never clamped)
+      term: item.displayTerm,
+      count: item.count, // Actual number of occurrences in normalized transcript
       weight: Math.min(10, Math.max(1, weight)), // Visual prominence scale (1 - 10)
     };
   });
-
-  return results;
 }
 
 /**
- * Transcribes audio buffer using the official AssemblyAI SDK with key phrase intelligence
+ * Transcribes audio buffer using AssemblyAI SDK with key phrase intelligence
  */
 async function transcribeAudioWithAssemblyAI(client, file) {
   const tempFilePath = path.join(
@@ -349,7 +343,7 @@ async function transcribeAudioWithAssemblyAI(client, file) {
       highlights: transcript.auto_highlights_result?.results || [],
     };
   } finally {
-    fs.promises.unlink(tempFilePath).catch(() => { });
+    fs.promises.unlink(tempFilePath).catch(() => {});
   }
 }
 
@@ -361,7 +355,10 @@ export async function processAudioAnalysis(file, duration) {
 
   try {
     // 1. Speech-to-Text Transcription & Key Phrase Identification via AssemblyAI
-    const { text: transcriptText, highlights } = await transcribeAudioWithAssemblyAI(client, file);
+    const { text: transcriptText, highlights } = await transcribeAudioWithAssemblyAI(
+      client,
+      file
+    );
 
     // 2. Validate meaningful speech presence
     if (
@@ -374,7 +371,7 @@ export async function processAudioAnalysis(file, duration) {
       );
     }
 
-    // 3. Normalized Term Extraction with filler/stopword filtering and proportional weighting
+    // 3. Normalized Term Extraction using AI highlights and occurrence counts
     const validatedTerms = extractTermsFromTranscript(transcriptText, highlights);
 
     if (validatedTerms.length === 0) {
@@ -422,7 +419,10 @@ export function mapAssemblyAIError(error) {
     lower.includes('unauthorized') ||
     lower.includes('forbidden')
   ) {
-    return new AppError('AssemblyAI API authentication failed. Please check your API key.', 401);
+    return new AppError(
+      'AssemblyAI API authentication failed. Please check your API key.',
+      401
+    );
   }
 
   // 2. Quota / Rate limit (429)
@@ -432,7 +432,10 @@ export function mapAssemblyAIError(error) {
     lower.includes('rate limit') ||
     lower.includes('too many requests')
   ) {
-    return new AppError('AI service quota has been reached. Please try again later.', 429);
+    return new AppError(
+      'AI service quota has been reached. Please try again later.',
+      429
+    );
   }
 
   // 3. Invalid client request / Bad audio format (400)
@@ -442,7 +445,10 @@ export function mapAssemblyAIError(error) {
     lower.includes('unsupported audio') ||
     lower.includes('bad request')
   ) {
-    return new AppError('Invalid audio analysis request. Please try a different audio sample.', 400);
+    return new AppError(
+      'Invalid audio analysis request. Please try a different audio sample.',
+      400
+    );
   }
 
   // 4. Temporary service failure or network connectivity (503)
@@ -454,9 +460,15 @@ export function mapAssemblyAIError(error) {
     lower.includes('econnrefused') ||
     lower.includes('etimedout')
   ) {
-    return new AppError('AI service is temporarily unavailable. Please try again later.', 503);
+    return new AppError(
+      'AI service is temporarily unavailable. Please try again later.',
+      503
+    );
   }
 
   // 5. Generic unexpected server error (500)
-  return new AppError('An unexpected error occurred during audio analysis. Please try again.', 500);
+  return new AppError(
+    'An unexpected error occurred during audio analysis. Please try again.',
+    500
+  );
 }
