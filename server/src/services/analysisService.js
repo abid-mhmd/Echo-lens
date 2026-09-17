@@ -2,8 +2,6 @@ import { AssemblyAI } from 'assemblyai';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
-import dotenv from 'dotenv';
 
 /**
  * Standard Application Error with HTTP status code
@@ -17,73 +15,93 @@ export class AppError extends Error {
 }
 
 /**
- * Initialize AssemblyAI client, loading server/.env if needed
+ * Initialize AssemblyAI client from configured environment
  */
 function getAssemblyAIClient() {
-  let apiKey = process.env.ASSEMBLYAI_API_KEY;
+  const apiKey = process.env.ASSEMBLYAI_API_KEY?.trim();
 
-  if (!apiKey || !apiKey.trim()) {
-    try {
-      const __dirname = path.dirname(fileURLToPath(import.meta.url));
-      const envPath = path.resolve(__dirname, '../../.env');
-      if (fs.existsSync(envPath)) {
-        dotenv.config({ path: envPath });
-        apiKey = process.env.ASSEMBLYAI_API_KEY;
-      }
-    } catch {}
-  }
-
-  if (!apiKey || !apiKey.trim()) {
+  if (!apiKey) {
     throw new AppError(
       'AssemblyAI API service is not configured. Please set the ASSEMBLYAI_API_KEY environment variable on the server.',
       503
     );
   }
 
-  return new AssemblyAI({ apiKey: apiKey.trim() });
+  return new AssemblyAI({ apiKey });
 }
 
 /**
- * Common spoken fillers and grammatical stopwords.
- * Purpose: Remove noise while preserving meaningful verbs, adjectives, and nouns.
+ * Obvious spoken acoustic hesitation fillers.
+ * Safe to deterministically remove without risk to semantic topics.
  */
-const STOP_WORDS = new Set([
-  // Spoken conversational fillers
-  'um', 'uh', 'erm', 'hmm', 'huh', 'like', 'basically', 'actually',
-  'literally', 'seriously', 'honestly', 'frankly', 'yeah', 'yep',
-  'nope', 'nah', 'okay', 'ok', 'alright', 'right',
+export const SPOKEN_FILLERS = new Set([
+  'um', 'uh', 'erm', 'hmm', 'mhm', 'ah', 'oh', 'huh',
+]);
 
-  // Articles & conjunctions
-  'a', 'an', 'the', 'and', 'or', 'but', 'nor', 'so', 'yet',
-  'because', 'although', 'while', 'if', 'as', 'than',
+/**
+ * Common conversational filler words when occurring as standalone terms.
+ */
+export const CONVERSATIONAL_FILLERS = new Set([
+  'basically', 'actually', 'really', 'just', 'well', 'nowadays',
+]);
 
-  // Prepositions
-  'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up',
-  'down', 'out', 'off', 'over', 'under', 'into', 'through', 'during',
-  'before', 'after', 'above', 'below', 'between', 'about',
+/**
+ * Multi-word conversational discourse phrases.
+ */
+export const DISCOURSE_PHRASES = new Set([
+  'you know', 'i mean', 'you see',
+]);
 
-  // Pronouns & demonstratives
-  'i', 'me', 'my', 'myself', 'we', 'us', 'our', 'ours',
-  'you', 'your', 'yours', 'he', 'him', 'his', 'she', 'her', 'hers',
-  'it', 'its', 'they', 'them', 'their', 'theirs',
-  'this', 'that', 'these', 'those', 'what', 'which', 'who', 'whom',
+/**
+ * Common conversational contractions (negative & pronoun contractions).
+ */
+export const CONVERSATIONAL_CONTRACTIONS = new Set([
+  // Negation contractions
+  "don't", "dont", "doesn't", "doesnt", "didn't", "didnt",
+  "can't", "cant", "couldn't", "couldnt",
+  "won't", "wont", "wouldn't", "wouldnt", "shouldn't", "shouldnt",
+  "isn't", "isnt", "aren't", "arent", "wasn't", "wasnt", "weren't", "werent",
+  "hasn't", "hasnt", "haven't", "havent", "hadn't", "hadnt",
 
-  // Determiners, quantifiers & numbers
-  'other', 'another', 'some', 'such', 'one', 'two', 'three', 'more', 'most',
-  'less', 'least', 'many', 'much', 'few', 'several', 'both', 'either', 'neither',
-  'each', 'every', 'all', 'any',
+  // Pronoun + auxiliary contractions
+  "i'm", "im", "i've", "ive", "i'd", "id", "i'll", "ill",
+  "you're", "youre", "you've", "youve", "you'd", "youd", "you'll", "youll",
+  "we're", "weve", "we've", "we'd", "wed", "we'll",
+  "they're", "theyre", "they've", "theyve", "they'd", "theyd", "they'll", "theyll",
+  "he's", "hes", "he'd", "hed", "he'll", "hell",
+  "she's", "shes", "she'd", "shed", "she'll",
+  "it's", "its", "that's", "thats", "there's", "theres",
+  "what's", "whats", "who's", "whos", "how's", "hows", "let's", "lets",
+]);
 
-  // Auxiliaries & common contractions
-  'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'have', 'has', 'had', 'do', 'does', 'did',
-  'will', 'would', 'shall', 'should', 'can', 'could', 'may', 'might', 'must',
-  'im', "i'm", 'youre', "you're", 'hes', "he's", 'shes', "she's",
-  'its', "it's", 'were', "we're", 'theyre', "they're",
-  'thats', "that's", 'theres', "there's", 'cant', "can't",
-  'dont', "don't", 'didnt', "didn't", 'wont', "won't",
-  'isnt', "isn't", 'arent', "aren't", 'wasnt', "wasn't",
-  'whats', "what's", 'hows', "how's", 'lets', "let's",
-  'just', 'very', 'really', 'too', 'also', 'still',
+/**
+ * Small, defensible set of closed-class grammatical particles.
+ * Only basic articles, conjunctions, prepositions, and basic auxiliaries/pronouns.
+ * Excludes context-dependent words (like, right, still, everything, anything, etc.).
+ */
+export const GRAMMATICAL_STOPWORDS = new Set([
+  // Articles
+  'a', 'an', 'the',
+
+  // Basic conjunctions
+  'and', 'or', 'but', 'nor', 'so',
+
+  // Basic prepositions
+  'of', 'in', 'to', 'for', 'with', 'on', 'at', 'by', 'from',
+
+  // Basic pronouns & auxiliaries
+  'i', 'you', 'he', 'she', 'it', 'we', 'they', 'this', 'that',
+  'is', 'are', 'was', 'were', 'be', 'been',
+]);
+
+/**
+ * Combined set of terms that should not be admitted as standalone Word Cloud topics.
+ */
+export const SAFE_STOP_WORDS = new Set([
+  ...SPOKEN_FILLERS,
+  ...CONVERSATIONAL_FILLERS,
+  ...CONVERSATIONAL_CONTRACTIONS,
+  ...GRAMMATICAL_STOPWORDS,
 ]);
 
 /**
@@ -118,15 +136,15 @@ export function cleanPunctuation(str) {
 export function safeSingularize(word) {
   const lower = word.toLowerCase();
 
-  // Preserve stopwords and contractions
-  if (STOP_WORDS.has(lower)) return lower;
+  // Preserve safe stopwords, contractions, and spoken fillers
+  if (SAFE_STOP_WORDS.has(lower)) return lower;
 
   // Possessive nouns: student's -> student, company's -> company
   if (lower.endsWith("'s")) {
     return lower.slice(0, -2);
   }
 
-  // Explicit non-plurals
+  // Explicit non-plurals: never alter
   if (NON_PLURALS.has(lower)) return lower;
 
   // Specific irregular plurals for protected categories
@@ -135,11 +153,16 @@ export function safeSingularize(word) {
   if (lower === 'crises') return 'crisis';
   if (lower === 'statuses') return 'status';
   if (lower === 'focuses') return 'focus';
-  if (lower.endsWith('sses')) return lower.slice(0, -2); // classes -> class, processes -> process
+  if (lower.endsWith('sses')) return lower.slice(0, -2); // classes -> class, processes -> process, businesses -> business
 
-  // Short words or non-plural endings
+  // Short words (<= 3 chars, e.g. 'gas', 'bus', 'yes') or non-plural endings ('ss', 'us', 'is')
   if (lower.length <= 3) return lower;
   if (lower.endsWith('ss') || lower.endsWith('us') || lower.endsWith('is')) return lower;
+
+  // English words ending in 's' that are adverbs/particles and not plurals
+  if (lower === 'always' || lower === 'sometimes' || lower === 'perhaps' || lower === 'nowadays') {
+    return lower;
+  }
 
   // technologies -> technology, strategies -> strategy
   if (lower.endsWith('ies') && lower.length > 4) {
@@ -155,7 +178,7 @@ export function safeSingularize(word) {
     return lower.slice(0, -2);
   }
 
-  // developers -> developer, systems -> system, students -> student
+  // developers -> developer, systems -> system, students -> student, projects -> project
   if (lower.endsWith('s') && !lower.endsWith('ss')) {
     return lower.slice(0, -1);
   }
@@ -204,7 +227,7 @@ export function tokenizeAndNormalize(text) {
 
 /**
  * Normalizes an AI highlight candidate into constituent normalized tokens.
- * Trims leading/trailing stopwords and validates that it contains meaningful content.
+ * Trims leading/trailing grammatical particles and validates meaningful topic content.
  */
 export function normalizeCandidateTokens(rawPhrase) {
   if (!rawPhrase || typeof rawPhrase !== 'string') return null;
@@ -226,22 +249,32 @@ export function normalizeCandidateTokens(rawPhrase) {
 
   if (tokens.length === 0) return null;
 
-  // Trim leading & trailing stopwords from multi-word candidates (e.g. "the machine learning" -> "machine learning")
-  while (tokens.length > 0 && STOP_WORDS.has(tokens[0])) {
+  // Check if candidate is a known conversational discourse phrase
+  const candidateKey = tokens.join(' ');
+  if (DISCOURSE_PHRASES.has(candidateKey)) {
+    return null;
+  }
+
+  // Trim leading & trailing grammatical particles from candidate phrases
+  // (e.g. "the machine learning" -> "machine learning", "in artificial intelligence" -> "artificial intelligence")
+  while (tokens.length > 0 && GRAMMATICAL_STOPWORDS.has(tokens[0])) {
     tokens.shift();
   }
-  while (tokens.length > 0 && STOP_WORDS.has(tokens[tokens.length - 1])) {
+  while (tokens.length > 0 && GRAMMATICAL_STOPWORDS.has(tokens[tokens.length - 1])) {
     tokens.pop();
   }
 
   if (tokens.length === 0) return null;
 
-  // Filter single stopwords or phrases without at least one meaningful word
-  if (tokens.length === 1 && STOP_WORDS.has(tokens[0])) {
+  // Reject candidate if remaining single token is a filler, contraction, or grammatical word
+  if (tokens.length === 1 && SAFE_STOP_WORDS.has(tokens[0])) {
     return null;
   }
 
-  const hasMeaningful = tokens.some((w) => w.length >= 3 && !STOP_WORDS.has(w));
+  // Ensure candidate contains at least one meaningful token that is not a filler or grammatical particle
+  const hasMeaningful = tokens.some(
+    (w) => w.length >= 2 && !SAFE_STOP_WORDS.has(w)
+  );
   if (!hasMeaningful) return null;
 
   return tokens;
@@ -366,23 +399,23 @@ export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
   // Step 6: Calculate visual weights (1 - 10) for Word Cloud sizing
   // count !== weight
   // count = actual mathematical frequency in normalized transcript
-  // weight = visual prominence used by Word Cloud
+  // weight = visual prominence used by Word Cloud (1 - 10)
   return topTerms.map((item) => {
     let weight;
 
     if (maxRank === minRank) {
       if (maxCount === minCount) {
-        weight = 7;
+        weight = 6;
       } else {
         const countRatio = (item.count - minCount) / (maxCount - minCount);
-        weight = Math.round(3 + countRatio * 7); // 3 to 10
+        weight = Math.round(1 + countRatio * 9); // 1 to 10
       }
     } else {
       const rankRatio = (item.aiRank - minRank) / (maxRank - minRank);
       const countRatio = maxCount > minCount ? (item.count - minCount) / (maxCount - minCount) : 0;
-      // Prominence is driven primarily by AI rank (75%), with frequency as supporting signal (25%)
-      const prominence = 0.75 * rankRatio + 0.25 * countRatio;
-      weight = Math.round(2 + prominence * 8); // 2 to 10
+      // Prominence is driven primarily by AI rank (70%), with frequency as supporting signal (30%)
+      const prominence = 0.7 * rankRatio + 0.3 * countRatio;
+      weight = Math.round(1 + prominence * 9); // Spans 1 to 10 for meaningful visual differences
     }
 
     return {
@@ -405,18 +438,12 @@ async function transcribeAudioWithAssemblyAI(client, file) {
   try {
     await fs.promises.writeFile(tempFilePath, file.buffer);
 
-    let transcript;
-    try {
-      transcript = await client.transcripts.transcribe({
-        audio: tempFilePath,
-        auto_highlights: true,
-      });
-    } catch {
-      // Resilient fallback to basic transcription if auto_highlights is unavailable
-      transcript = await client.transcripts.transcribe({
-        audio: tempFilePath,
-      });
-    }
+    // Transcribe with AI auto_highlights and without spoken disfluencies
+    const transcript = await client.transcripts.transcribe({
+      audio: tempFilePath,
+      auto_highlights: true,
+      disfluencies: false,
+    });
 
     if (transcript.status === 'error') {
       throw new Error(transcript.error || 'AssemblyAI transcription failed.');
@@ -427,7 +454,7 @@ async function transcribeAudioWithAssemblyAI(client, file) {
       highlights: transcript.auto_highlights_result?.results || [],
     };
   } finally {
-    fs.promises.unlink(tempFilePath).catch(() => {});
+    await fs.promises.unlink(tempFilePath).catch(() => {});
   }
 }
 
@@ -444,7 +471,7 @@ export async function processAudioAnalysis(file, duration) {
       file
     );
 
-    // 2. Validate meaningful speech presence
+    // 2. Validate meaningful speech presence (Case A)
     if (
       !transcriptText ||
       transcriptText.replace(/[^a-zA-Z0-9]/g, '').length < 2
@@ -455,12 +482,12 @@ export async function processAudioAnalysis(file, duration) {
       );
     }
 
-    // 3. Normalized Term Extraction using AI highlights and occurrence counts
+    // 3. Normalized Term Extraction using AI highlights (Case B)
     const validatedTerms = extractTermsFromTranscript(transcriptText, highlights);
 
     if (validatedTerms.length === 0) {
       throw new AppError(
-        'No meaningful speech detected in the audio. Please check your microphone and speak clearly.',
+        'No prominent discussion topics could be identified from the audio. Please try speaking longer or discussing specific topics.',
         422
       );
     }
