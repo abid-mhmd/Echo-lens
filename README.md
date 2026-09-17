@@ -106,7 +106,7 @@ The backend relies on the following environment variables, loaded exclusively fr
 | Variable | Description | Required | Example |
 | :--- | :--- | :--- | :--- |
 | `PORT` | Local port for Express API server | No (defaults to 5000) | `5000` |
-| `ASSEMBLYAI_API_KEY` | API key for AssemblyAI Speech-to-Text | Yes | `53a26882...` |
+| `ASSEMBLYAI_API_KEY` | API key for AssemblyAI Speech-to-Text | Yes | `your_assemblyai_api_key` |
 
 > **Security Note**: `server/.env` is strictly excluded from Git via `.gitignore`. API keys are never exposed in frontend client code or network payloads.
 
