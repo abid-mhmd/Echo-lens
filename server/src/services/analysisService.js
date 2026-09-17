@@ -199,111 +199,90 @@ function countOccurrences(normalizedTerm, transcript) {
 
   const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
   const matches = transcript.match(regex);
-  return matches ? matches.length : 1;
+  return matches ? matches.length : 0;
 }
 
 /**
- * Extracts and weights meaningful discussion concepts.
+ * Extracts and weights meaningful discussion concepts using AssemblyAI's AI key phrases.
  * Pipeline:
- * 1. Ingest AssemblyAI AI key phrases as primary intelligence
+ * 1. Ingest AssemblyAI AI key phrases as primary intelligence (auto_highlights)
  * 2. Clean and safely normalize terms
  * 3. Count real occurrences in transcript
  * 4. Calculate visual weights (1 - 10) reflecting AI prominence and frequency
  */
 export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
   if (!transcriptText || typeof transcriptText !== 'string') return [];
+  if (!Array.isArray(aiHighlights) || aiHighlights.length === 0) return [];
 
-  const candidates = new Map(); // normalized -> { displayTerm, count, aiScore, isAiHighlight }
+  const candidates = new Map(); // normalized -> { displayTerm, count, aiRank }
 
-  // Step A & B: Process AssemblyAI AI Highlights as primary intelligence
-  if (Array.isArray(aiHighlights)) {
-    for (const h of aiHighlights) {
-      const phrase = typeof h === 'string' ? h : h?.text;
-      if (!phrase) continue;
+  // Step A & B: Ingest AssemblyAI AI Highlights as the primary source of prominent terms
+  for (const h of aiHighlights) {
+    const phrase = typeof h === 'string' ? h : h?.text;
+    if (!phrase) continue;
 
-      const normalized = normalizeTerm(phrase);
-      if (!normalized) continue;
+    const normalized = normalizeTerm(phrase);
+    if (!normalized) continue;
 
-      const count = countOccurrences(normalized, transcriptText);
-      const aiRank = typeof h?.rank === 'number' ? h.rank : 0.7;
+    const count = countOccurrences(normalized, transcriptText);
+    const finalCount = count > 0 ? count : (typeof h?.count === 'number' && h.count > 0 ? h.count : 0);
+    if (finalCount === 0) continue;
 
-      if (!candidates.has(normalized)) {
-        candidates.set(normalized, {
-          displayTerm: formatDisplayTerm(normalized),
-          count,
-          aiScore: aiRank * 10,
-          isAiHighlight: true,
-        });
-      } else {
-        const existing = candidates.get(normalized);
-        existing.count = Math.max(existing.count, count);
-        existing.aiScore = Math.max(existing.aiScore, aiRank * 10);
-      }
+    const aiRank = typeof h?.rank === 'number' ? h.rank : 0.5;
+
+    if (!candidates.has(normalized)) {
+      candidates.set(normalized, {
+        displayTerm: formatDisplayTerm(normalized),
+        count: finalCount,
+        aiRank,
+      });
+    } else {
+      const existing = candidates.get(normalized);
+      existing.count = Math.max(existing.count, finalCount);
+      existing.aiRank = Math.max(existing.aiRank, aiRank);
     }
   }
 
-  // Step C: Optional transcript fallback ONLY if AssemblyAI returned zero highlights
-  if (candidates.size === 0) {
-    const rawTokens = transcriptText.match(/[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?/g) || [];
-    const wordFreq = new Map();
-
-    for (const token of rawTokens) {
-      const clean = cleanPunctuation(token);
-      if (clean.length < 3) continue;
-
-      const norm = safeSingularize(clean);
-      if (STOP_WORDS.has(norm) || norm.length < 3) continue;
-
-      wordFreq.set(norm, (wordFreq.get(norm) || 0) + 1);
-    }
-
-    const sortedWords = Array.from(wordFreq.entries()).sort((a, b) => b[1] - a[1]);
-    for (const [norm, freq] of sortedWords.slice(0, 15)) {
-      if (!candidates.has(norm)) {
-        candidates.set(norm, {
-          displayTerm: formatDisplayTerm(norm),
-          count: freq,
-          aiScore: 5,
-          isAiHighlight: false,
-        });
-      }
-    }
-  }
-
+  // If AI key phrases yielded no meaningful terms, do not fabricate or fall back to raw transcript frequency
   if (candidates.size === 0) return [];
 
   const candidateList = Array.from(candidates.values());
 
-  // Step D: Rank terms by composite score (AI prominence + frequency)
+  // Step C: Rank terms by AI prominence/rank as the primary signal, with occurrence count as supporting evidence
   candidateList.sort((a, b) => {
-    const scoreA = (a.isAiHighlight ? 5 : 0) + a.aiScore + Math.min(5, a.count);
-    const scoreB = (b.isAiHighlight ? 5 : 0) + b.aiScore + Math.min(5, b.count);
-    return scoreB - scoreA;
+    if (b.aiRank !== a.aiRank) {
+      return b.aiRank - a.aiRank;
+    }
+    return b.count - a.count;
   });
 
   const topTerms = candidateList.slice(0, 20);
+  const maxRank = Math.max(...topTerms.map((t) => t.aiRank));
+  const minRank = Math.min(...topTerms.map((t) => t.aiRank));
   const maxCount = Math.max(...topTerms.map((t) => t.count));
   const minCount = Math.min(...topTerms.map((t) => t.count));
 
-  // Step E: Calculate visual weights (1 - 10) for typography scaling
+  // Step D: Calculate visual weights (1 - 10) for typography scaling
   return topTerms.map((item) => {
     let weight;
 
-    if (item.isAiHighlight) {
+    if (maxRank === minRank) {
       if (maxCount === minCount) {
-        weight = Math.round(7 + (item.aiScore / 10) * 3);
+        weight = 7;
       } else {
-        const freqRatio = (item.count - minCount) / (maxCount - minCount || 1);
-        weight = Math.round(6 + freqRatio * 4); // 6 to 10 scale for AI highlights
+        const countRatio = (item.count - minCount) / (maxCount - minCount);
+        weight = Math.round(5 + countRatio * 5); // 5 to 10
       }
     } else {
-      const freqRatio = maxCount > minCount ? (item.count - minCount) / (maxCount - minCount) : 0.5;
-      weight = Math.round(3 + freqRatio * 3); // 3 to 6 scale for fallback transcript words
+      // Primary weight from AI rank (scales 4 to 9), plus small boost from frequency (0 to 1)
+      const rankRatio = (item.aiRank - minRank) / (maxRank - minRank);
+      const countBoost = maxCount > minCount ? (item.count - minCount) / (maxCount - minCount) : 0;
+      weight = Math.round(4 + rankRatio * 5 + countBoost);
     }
 
     return {
       term: item.displayTerm,
-      count: item.count, // Actual number of occurrences in normalized transcript
+      count: item.count, // Actual number of occurrences in normalized transcript (never fake, never weight)
       weight: Math.min(10, Math.max(1, weight)), // Visual prominence scale (1 - 10)
     };
   });
