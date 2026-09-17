@@ -82,7 +82,8 @@ const STOP_WORDS = new Set([
   'thats', "that's", 'theres', "there's", 'cant', "can't",
   'dont', "don't", 'didnt', "didn't", 'wont', "won't",
   'isnt', "isn't", 'arent', "aren't", 'wasnt', "wasn't",
-  'just', 'very', 'really', 'too', 'also',
+  'whats', "what's", 'hows', "how's", 'lets', "let's",
+  'just', 'very', 'really', 'too', 'also', 'still',
 ]);
 
 /**
@@ -105,18 +106,39 @@ const KNOWN_ACRONYMS = new Set([
 /**
  * Strips surrounding punctuation from a raw word token
  */
-function cleanPunctuation(str) {
+export function cleanPunctuation(str) {
   if (!str || typeof str !== 'string') return '';
   return str.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').trim();
 }
 
 /**
  * Safely normalizes an English word from plural to singular.
- * If uncertain, preserves the original word.
+ * Strictly protects NON_PLURALS and avoids aggressive stemming.
  */
-function safeSingularize(word) {
+export function safeSingularize(word) {
   const lower = word.toLowerCase();
-  if (lower.length <= 3 || NON_PLURALS.has(lower)) return lower;
+
+  // Preserve stopwords and contractions
+  if (STOP_WORDS.has(lower)) return lower;
+
+  // Possessive nouns: student's -> student, company's -> company
+  if (lower.endsWith("'s")) {
+    return lower.slice(0, -2);
+  }
+
+  // Explicit non-plurals
+  if (NON_PLURALS.has(lower)) return lower;
+
+  // Specific irregular plurals for protected categories
+  if (lower === 'lenses') return 'lens';
+  if (lower === 'analyses') return 'analysis';
+  if (lower === 'crises') return 'crisis';
+  if (lower === 'statuses') return 'status';
+  if (lower === 'focuses') return 'focus';
+  if (lower.endsWith('sses')) return lower.slice(0, -2); // classes -> class, processes -> process
+
+  // Short words or non-plural endings
+  if (lower.length <= 3) return lower;
   if (lower.endsWith('ss') || lower.endsWith('us') || lower.endsWith('is')) return lower;
 
   // technologies -> technology, strategies -> strategy
@@ -133,7 +155,7 @@ function safeSingularize(word) {
     return lower.slice(0, -2);
   }
 
-  // developers -> developer, systems -> system, services -> service
+  // developers -> developer, systems -> system, students -> student
   if (lower.endsWith('s') && !lower.endsWith('ss')) {
     return lower.slice(0, -1);
   }
@@ -144,7 +166,7 @@ function safeSingularize(word) {
 /**
  * Formats a clean display term (Title Case, uppercase for acronyms)
  */
-function formatDisplayTerm(term) {
+export function formatDisplayTerm(term) {
   return term
     .split(/\s+/)
     .map((word) => {
@@ -156,99 +178,178 @@ function formatDisplayTerm(term) {
 }
 
 /**
- * Normalizes a phrase or word for concept matching:
- * - Trims punctuation
- * - Lowercases
- * - Singularizes constituent words
- * - Filters out standalone stopwords/fillers
+ * Tokenizes and normalizes the full transcript using the exact same cleaning
+ * and safe singularization rules used for AI highlight candidates.
  */
-function normalizeTerm(rawTerm) {
-  const cleaned = cleanPunctuation(rawTerm);
-  if (!cleaned) return null;
+export function tokenizeAndNormalize(text) {
+  if (!text || typeof text !== 'string') return [];
+  const sanitized = text
+    .replace(/[’‘]/g, "'")
+    .replace(/[\u2014\u2013]|--/g, ' ');
 
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  const normalizedWords = words.map((w) => safeSingularize(cleanPunctuation(w)));
+  const rawTokens = sanitized.split(/\s+/).filter(Boolean);
+  const normalizedTokens = [];
 
-  // Filter single stopwords
-  if (normalizedWords.length === 1 && STOP_WORDS.has(normalizedWords[0])) {
-    return null;
+  for (const raw of rawTokens) {
+    const cleaned = cleanPunctuation(raw);
+    if (!cleaned) continue;
+    const normalized = safeSingularize(cleaned);
+    if (normalized) {
+      normalizedTokens.push(normalized);
+    }
   }
 
-  // Filter phrases consisting entirely of stopwords/fillers (e.g. "you know")
-  const hasMeaningfulWord = normalizedWords.some(
-    (w) => w.length >= 3 && !STOP_WORDS.has(w)
-  );
-  if (!hasMeaningfulWord) {
-    return null;
-  }
-
-  return normalizedWords.join(' ');
+  return normalizedTokens;
 }
 
 /**
- * Counts actual occurrences of a term in the transcript.
- * Uses case-insensitive word-boundary matching with optional plural suffix.
+ * Normalizes an AI highlight candidate into constituent normalized tokens.
+ * Trims leading/trailing stopwords and validates that it contains meaningful content.
  */
-function countOccurrences(normalizedTerm, transcript) {
-  if (!normalizedTerm || !transcript) return 0;
-  const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = escaped
-    .split('\\ ')
-    .map((word) => `${word}s?`)
-    .join('\\s+');
+export function normalizeCandidateTokens(rawPhrase) {
+  if (!rawPhrase || typeof rawPhrase !== 'string') return null;
+  const sanitized = rawPhrase
+    .replace(/[’‘]/g, "'")
+    .replace(/[\u2014\u2013]|--/g, ' ');
 
-  const regex = new RegExp(`\\b${pattern}\\b`, 'gi');
-  const matches = transcript.match(regex);
-  return matches ? matches.length : 0;
+  const rawTokens = sanitized.split(/\s+/).filter(Boolean);
+  const tokens = [];
+
+  for (const raw of rawTokens) {
+    const cleaned = cleanPunctuation(raw);
+    if (!cleaned) continue;
+    const normalized = safeSingularize(cleaned);
+    if (normalized) {
+      tokens.push(normalized);
+    }
+  }
+
+  if (tokens.length === 0) return null;
+
+  // Trim leading & trailing stopwords from multi-word candidates (e.g. "the machine learning" -> "machine learning")
+  while (tokens.length > 0 && STOP_WORDS.has(tokens[0])) {
+    tokens.shift();
+  }
+  while (tokens.length > 0 && STOP_WORDS.has(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+
+  if (tokens.length === 0) return null;
+
+  // Filter single stopwords or phrases without at least one meaningful word
+  if (tokens.length === 1 && STOP_WORDS.has(tokens[0])) {
+    return null;
+  }
+
+  const hasMeaningful = tokens.some((w) => w.length >= 3 && !STOP_WORDS.has(w));
+  if (!hasMeaningful) return null;
+
+  return tokens;
+}
+
+/**
+ * Counts exact occurrences of a normalized multi-word phrase in the normalized transcript token sequence.
+ * Avoids false substring matches and accurately supports multi-word AI highlights.
+ */
+export function countPhraseOccurrences(phraseTokens, transcriptTokens) {
+  if (!phraseTokens || phraseTokens.length === 0 || !transcriptTokens || transcriptTokens.length === 0) {
+    return 0;
+  }
+  const pLen = phraseTokens.length;
+  if (pLen === 1) {
+    let count = 0;
+    const target = phraseTokens[0];
+    for (let i = 0; i < transcriptTokens.length; i++) {
+      if (transcriptTokens[i] === target) count++;
+    }
+    return count;
+  }
+
+  if (pLen > transcriptTokens.length) return 0;
+
+  let count = 0;
+  for (let i = 0; i <= transcriptTokens.length - pLen; i++) {
+    let match = true;
+    for (let j = 0; j < pLen; j++) {
+      if (transcriptTokens[i + j] !== phraseTokens[j]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      count++;
+      i += pLen - 1; // Advance past matched phrase to avoid overlapping counts
+    }
+  }
+  return count;
 }
 
 /**
  * Extracts and weights meaningful discussion concepts using AssemblyAI's AI key phrases.
  * Pipeline:
- * 1. Ingest AssemblyAI AI key phrases as primary intelligence (auto_highlights)
- * 2. Clean and safely normalize terms
- * 3. Count real occurrences in transcript
- * 4. Calculate visual weights (1 - 10) reflecting AI prominence and frequency
+ * 1. Raw AssemblyAI transcript -> tokenize & clean punctuation -> safe normalization
+ * 2. Generate normalized transcript frequency map
+ * 3. Use AssemblyAI auto_highlights ONLY to identify prominent candidate terms
+ * 4. Look up each candidate's REAL frequency from the normalized transcript
+ * 5. Calculate visual weight separately: count !== weight
  */
 export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
   if (!transcriptText || typeof transcriptText !== 'string') return [];
   if (!Array.isArray(aiHighlights) || aiHighlights.length === 0) return [];
 
-  const candidates = new Map(); // normalized -> { displayTerm, count, aiRank }
+  // Step 1: Tokenize & normalize transcript
+  const transcriptTokens = tokenizeAndNormalize(transcriptText);
+  if (transcriptTokens.length === 0) return [];
 
-  // Step A & B: Ingest AssemblyAI AI Highlights as the primary source of prominent terms
+  // Step 2: Build normalized frequency map for single terms
+  const frequencyMap = new Map();
+  for (const token of transcriptTokens) {
+    frequencyMap.set(token, (frequencyMap.get(token) || 0) + 1);
+  }
+
+  // Step 3 & 4: Process AI highlights to identify prominent candidates & look up actual frequencies
+  const candidates = new Map(); // normalizedKey -> { displayTerm, count, aiRank }
+
   for (const h of aiHighlights) {
-    const phrase = typeof h === 'string' ? h : h?.text;
-    if (!phrase) continue;
+    const rawPhrase = typeof h === 'string' ? h : h?.text;
+    if (!rawPhrase) continue;
 
-    const normalized = normalizeTerm(phrase);
-    if (!normalized) continue;
+    const phraseTokens = normalizeCandidateTokens(rawPhrase);
+    if (!phraseTokens || phraseTokens.length === 0) continue;
 
-    const count = countOccurrences(normalized, transcriptText);
-    const finalCount = count > 0 ? count : (typeof h?.count === 'number' && h.count > 0 ? h.count : 0);
-    if (finalCount === 0) continue;
+    const normalizedKey = phraseTokens.join(' ');
 
-    const aiRank = typeof h?.rank === 'number' ? h.rank : 0.5;
+    // Actual occurrence count from normalized transcript (single-word or multi-word phrase)
+    const count = phraseTokens.length === 1
+      ? (frequencyMap.get(phraseTokens[0]) || 0)
+      : countPhraseOccurrences(phraseTokens, transcriptTokens);
 
-    if (!candidates.has(normalized)) {
-      candidates.set(normalized, {
-        displayTerm: formatDisplayTerm(normalized),
-        count: finalCount,
+    // If an AI highlight has no matching occurrence in the normalized transcript,
+    // do NOT fabricate a count. Ignore that candidate.
+    if (count <= 0) continue;
+
+    const aiRank = typeof h?.rank === 'number' && !isNaN(h.rank) ? h.rank : 0.5;
+
+    if (!candidates.has(normalizedKey)) {
+      candidates.set(normalizedKey, {
+        displayTerm: formatDisplayTerm(normalizedKey),
+        count,
         aiRank,
       });
     } else {
-      const existing = candidates.get(normalized);
-      existing.count = Math.max(existing.count, finalCount);
+      const existing = candidates.get(normalizedKey);
+      // Frequency is fixed from transcript; preserve highest AI rank if highlighted multiple times
+      existing.count = count;
       existing.aiRank = Math.max(existing.aiRank, aiRank);
     }
   }
 
-  // If AI key phrases yielded no meaningful terms, do not fabricate or fall back to raw transcript frequency
+  // If AI key phrases yielded no matching terms in transcript, do not fabricate
   if (candidates.size === 0) return [];
 
   const candidateList = Array.from(candidates.values());
 
-  // Step C: Rank terms by AI prominence/rank as the primary signal, with occurrence count as supporting evidence
+  // Step 5: Rank terms by AI prominence/rank as primary signal, occurrence frequency as secondary
   candidateList.sort((a, b) => {
     if (b.aiRank !== a.aiRank) {
       return b.aiRank - a.aiRank;
@@ -262,7 +363,10 @@ export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
   const maxCount = Math.max(...topTerms.map((t) => t.count));
   const minCount = Math.min(...topTerms.map((t) => t.count));
 
-  // Step D: Calculate visual weights (1 - 10) for typography scaling
+  // Step 6: Calculate visual weights (1 - 10) for Word Cloud sizing
+  // count !== weight
+  // count = actual mathematical frequency in normalized transcript
+  // weight = visual prominence used by Word Cloud
   return topTerms.map((item) => {
     let weight;
 
@@ -271,18 +375,19 @@ export function extractTermsFromTranscript(transcriptText, aiHighlights = []) {
         weight = 7;
       } else {
         const countRatio = (item.count - minCount) / (maxCount - minCount);
-        weight = Math.round(5 + countRatio * 5); // 5 to 10
+        weight = Math.round(3 + countRatio * 7); // 3 to 10
       }
     } else {
-      // Primary weight from AI rank (scales 4 to 9), plus small boost from frequency (0 to 1)
       const rankRatio = (item.aiRank - minRank) / (maxRank - minRank);
-      const countBoost = maxCount > minCount ? (item.count - minCount) / (maxCount - minCount) : 0;
-      weight = Math.round(4 + rankRatio * 5 + countBoost);
+      const countRatio = maxCount > minCount ? (item.count - minCount) / (maxCount - minCount) : 0;
+      // Prominence is driven primarily by AI rank (75%), with frequency as supporting signal (25%)
+      const prominence = 0.75 * rankRatio + 0.25 * countRatio;
+      weight = Math.round(2 + prominence * 8); // 2 to 10
     }
 
     return {
       term: item.displayTerm,
-      count: item.count, // Actual number of occurrences in normalized transcript (never fake, never weight)
+      count: item.count, // Actual mathematically accurate occurrence count
       weight: Math.min(10, Math.max(1, weight)), // Visual prominence scale (1 - 10)
     };
   });
