@@ -339,6 +339,14 @@ export default function WordCloud({ result, onReset }) {
                 <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
+                {typeof item.count === 'number' && (
+                  <span
+                    className={`ml-1.5 sm:ml-2 px-1.5 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-bold leading-none opacity-75 group-hover:opacity-100 transition-opacity flex-shrink-0 ${tier.badgeClass}`}
+                    aria-label={`${item.count} ${item.count === 1 ? 'mention' : 'mentions'}`}
+                  >
+                    {item.count}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -389,6 +397,14 @@ export default function WordCloud({ result, onReset }) {
                 <span className={`${tier.sizeClass} ${tier.colorClass} leading-tight text-center whitespace-nowrap`}>
                   {item.term}
                 </span>
+                {typeof item.count === 'number' && (
+                  <span
+                    className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold leading-none opacity-85 flex-shrink-0 ${tier.badgeClass}`}
+                    aria-label={`${item.count} ${item.count === 1 ? 'mention' : 'mentions'}`}
+                  >
+                    {item.count}
+                  </span>
+                )}
               </div>
             );
           })}
